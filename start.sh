@@ -7,6 +7,22 @@ ulimit -s unlimited 2>/dev/null
 SYS_CFG="/tmp/system_config.json"
 
 # =================================================================
+# 🧹 PEMBERSIHAN PROSES LAMA (PREVENT EADDRINUSE)
+# =================================================================
+echo "[*] Memersihkan proses lama & port yang tersangkut..."
+pkill -9 -f "node" 2>/dev/null
+pkill -9 dropbear 2>/dev/null
+pkill -9 stunnel4 2>/dev/null
+pkill -9 cloudflared 2>/dev/null
+pkill -9 badvpn-udpgw 2>/dev/null
+
+# Paksa bebaskan port jika fuser tersedia
+fuser -k 8880/tcp 2>/dev/null
+fuser -k 8881/tcp 2>/dev/null
+fuser -k 8081/tcp 2>/dev/null
+sleep 1
+
+# =================================================================
 # 🔍 BACA KONFIGURASI DINAMIS DARI FILE JSON UI
 # =================================================================
 if [ -f "$SYS_CFG" ] && command -v jq >/dev/null 2>&1; then
@@ -67,7 +83,7 @@ EOF
 fi
 
 # =================================================================
-# 🔒 KOFIGURASI NETWORK & SERVICES (DROPBEAR, STUNNEL, UDPGW)
+# 🔒 KONFIGURASI NETWORK & SERVICES (DROPBEAR, STUNNEL, UDPGW)
 # =================================================================
 SSL_INTERNAL_PORT="2443"
 
@@ -77,9 +93,6 @@ openssl req -new -newkey rsa:2048 -days 365 -nodes -x509 \
     -subj "/C=ID/ST=Jakarta/L=Jakarta/O=RailwaySSH/CN=localhost" \
     -keyout /etc/stunnel/stunnel.pem -out /etc/stunnel/stunnel.pem 2>/dev/null
 chmod 600 /etc/stunnel/stunnel.pem
-
-echo "[*] Memastikan proses Dropbear lama bersih..."
-pkill -9 dropbear 2>/dev/null
 
 echo "[*] Memulai Dropbear Server di Port Lokal 22..."
 /usr/sbin/dropbear -p 127.0.0.1:22 -b /etc/dropbear_banner -W 1048576 -K 15 -I 300
@@ -102,26 +115,27 @@ stunnel4 /etc/stunnel/stunnel.conf
 
 echo "[*] Memulai WS-Proxy untuk SSH Dropbear di Port Lokal 8880..."
 export WS_PORT="8880"
-node ws-proxy.js &
+nohup node ws-proxy.js >/dev/null 2>&1 &
 
 if [ -f /usr/local/bin/badvpn-udpgw ]; then
     echo "[*] Memulai BadVPN udpgw di Port Global ${UDPGW_PORT}..."
-    /usr/local/bin/badvpn-udpgw --listen-addr 0.0.0.0:${UDPGW_PORT} --max-clients ${UDPGW_MAX_CLIENTS} --max-connections-for-client 50 &
+    nohup /usr/local/bin/badvpn-udpgw --listen-addr 0.0.0.0:${UDPGW_PORT} --max-clients ${UDPGW_MAX_CLIENTS} --max-connections-for-client 50 >/dev/null 2>&1 &
 fi
 
 TARGET_ZT_PORT="${ARGO_PORT:-8880}"
 
 if [ -n "$TOKEN" ]; then
     echo "[*] Menghubungkan Terowongan SSH Zero Trust ke Port ${TARGET_ZT_PORT}..."
-    /usr/local/bin/cloudflared tunnel run --protocol http2 --no-tls-verify --token "$TOKEN"  > /tmp/named_tunnel.log 2>&1 &
+    /usr/local/bin/cloudflared tunnel run --protocol http2 --no-tls-verify --token "$TOKEN" > /tmp/named_tunnel.log 2>&1 &
 fi
 
 sleep 1
 
 echo "[*] Memulai Mux.js di Port 8881..."
-node mux.js &
+nohup node mux.js >/dev/null 2>&1 &
 
 sleep 1
 
 echo "[*] Menjalankan Server Utama UI & Gateway Server.js..."
-exec node server.js
+# PAKSA server.js di port 8081 khusus untuk UI, supaya tidak merebut PORT=8881 bawaan Railway milik Mux.js
+PORT=8081 exec node server.js
