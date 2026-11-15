@@ -497,6 +497,1784 @@ async function generateLinks(argoDomain) {
 }
 
 // ========================================================
+// PANEL HTML (HASIL GABUNGAN ui.js + style.css + app.js)
+// Semua sudah menyatu di file ini: tidak ada lagi file
+// index.html / ui.js / style.css / app.js eksternal.
+// ========================================================
+const PANEL_HTML = `<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>SSH & VPN PANEL</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: #f8fafc;
+    color: #0f172a;
+    min-height: 100vh;
+    padding: 0;
+    margin: 0;
+}
+
+/* NAVBAR */
+.navbar {
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.nav-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.hamburger-btn {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    color: #334155;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    transition: 0.2s ease;
+}
+
+.hamburger-btn:hover {
+    background: #e2e8f0;
+}
+
+.nav-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* SIDEBAR & OVERLAY */
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.4);
+    z-index: 998;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: -280px;
+    width: 280px;
+    height: 100%;
+    background: #ffffff;
+    border-right: 1px solid #e2e8f0;
+    z-index: 999;
+    transition: left 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 0;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.05);
+}
+
+.sidebar.active {
+    left: 0;
+}
+
+.sidebar-header {
+    padding: 0 20px 16px 20px;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sidebar-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.close-sidebar {
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+.sidebar-menu {
+    list-style: none;
+    padding: 12px 0;
+    margin: 0;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.menu-item {
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s;
+    border-left: 3px solid transparent;
+}
+
+.menu-item:hover {
+    background: #f8fafc;
+    color: #0284c7;
+}
+
+.menu-item.active {
+    background: #f0f9ff;
+    color: #0284c7;
+    border-left-color: #0284c7;
+}
+
+/* MAIN LAYOUT */
+.main-wrapper {
+    display: flex;
+    justify-content: center;
+    padding: 20px 14px;
+}
+
+.container {
+    width: 100%;
+    max-width: 480px;
+}
+
+.page-section {
+    display: none;
+}
+
+.page-section.active {
+    display: block;
+}
+
+.dev-tag {
+    font-size: 10px;
+    color: #64748b;
+    margin-top: 4px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.btn-login-trigger {
+    background: #f8fafc;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    font-weight: 700;
+    transition: 0.2s;
+}
+
+.btn-login-trigger:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+}
+
+/* STATUS & STATS */
+.status-container {
+    text-align: center;
+    margin-bottom: 14px;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #f0fdf4;
+    color: #15803d;
+    padding: 5px 14px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid #bbf7d0;
+}
+
+.status-badge::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    background: #22c55e;
+    border-radius: 50%;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.stat-card {
+    background: #ffffff;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    border-left: 3px solid #3b82f6;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.stat-title {
+    font-size: 10px;
+    color: #64748b;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.stat-value {
+    font-size: 12px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-top: 3px;
+}
+
+/* SSH MANAGER & INPUTS */
+.ssh-manager {
+    background: #ffffff;
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    border-top: 3px solid #0284c7;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+}
+
+.ssh-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1e293b;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.input-group {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.input-ssh {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: #0f172a;
+    font-size: 12px;
+    width: 100%;
+    outline: none;
+    transition: 0.2s;
+}
+
+.input-ssh:focus {
+    border-color: #0284c7;
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.1);
+}
+
+.btn-add {
+    background: #0284c7;
+    color: #ffffff;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 11px;
+    transition: 0.2s;
+}
+
+.btn-add:hover {
+    background: #0369a1;
+}
+
+.admin-status-lbl {
+    font-size: 9px;
+    font-weight: 700;
+    color: #475569;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    padding: 3px 6px;
+    border-radius: 4px;
+}
+
+.result-box {
+    display: none;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-left: 3px solid #10b981;
+    border-radius: 8px;
+    padding: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 11px;
+    color: #0f172a;
+    white-space: pre-wrap;
+    margin-bottom: 10px;
+    overflow-x: hidden;
+}
+
+.btn-copy-result {
+    display: none;
+    background: #f1f5f9;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
+    padding: 7px;
+    border-radius: 6px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 11px;
+    width: 100%;
+    margin-bottom: 12px;
+    transition: 0.2s;
+}
+
+.btn-copy-result:hover {
+    background: #e2e8f0;
+}
+
+.ssh-list {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 11px;
+}
+
+.ssh-list th {
+    text-align: left;
+    padding: 6px 8px;
+    color: #64748b;
+    font-weight: 700;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.ssh-list td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+    color: #1e293b;
+}
+
+.btn-action-group {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.btn-del {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 600;
+    display: none;
+}
+
+.btn-del:hover {
+    background: #fee2e2;
+}
+
+.btn-info {
+    background: #f0fdf4;
+    color: #16a34a;
+    border: 1px solid #bbf7d0;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 600;
+    display: none;
+}
+
+.btn-info:hover {
+    background: #dcfce7;
+}
+
+/* URL CARDS & SECTIONS */
+.url-section {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.url-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.url-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #475569;
+}
+
+.url-content-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    padding: 6px 10px;
+    border-radius: 8px;
+}
+
+.url-box {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    word-break: break-all;
+    font-weight: 600;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #0f172a;
+}
+
+.btn-copy-mini {
+    background: #ffffff;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: 0.2s;
+}
+
+.btn-copy-mini:hover {
+    background: #f1f5f9;
+    color: #0284c7;
+    border-color: #0284c7;
+}
+
+.select-zt-mini {
+    background: transparent;
+    border: none;
+    color: #0f172a;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    outline: none;
+    width: 100%;
+    cursor: pointer;
+}
+
+.btn-token-trigger {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 11px;
+    cursor: pointer;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #0284c7;
+    transition: 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.btn-token-trigger:hover {
+    background: #f0f9ff;
+    border-color: #bae6fd;
+}
+
+/* CONFIG GENERATOR CARD */
+.card-blue {
+    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 16px;
+    border-radius: 12px;
+    margin-top: 10px;
+    text-align: left;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.btn-blue {
+    background-color: #f8fafc;
+    border: 1px solid #cbd5e1;
+    color: #334155;
+    padding: 7px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    width: 100%;
+    text-align: center;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    transition: 0.2s;
+}
+
+.btn-blue:hover {
+    background-color: #f1f5f9;
+    border-color: #94a3b8;
+}
+
+.btn-active {
+    border-color: #0284c7 !important;
+    background-color: #f0f9ff !important;
+    color: #0284c7 !important;
+}
+
+.grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.lbl-vpn {
+    font-size: 10px;
+    color: #64748b;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+}
+
+.border-lbl {
+    border-left: 3px solid #0284c7;
+    padding-left: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    margin-top: 12px;
+    margin-bottom: 2px;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #1e293b;
+}
+
+.zt-admin-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    padding: 16px;
+    border-radius: 12px;
+    margin-bottom: 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.sub-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 12px;
+}
+
+.sub-box-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.note {
+    font-size: 10px;
+    color: #94a3b8;
+    text-align: center;
+    line-height: 1.5;
+    margin-top: 14px;
+}
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="nav-left">
+            <button class="hamburger-btn" onclick="toggleSidebar()">☰</button>
+            <div class="nav-title">SERVER PANEL</div>
+        </div>
+        <button class="btn-login-trigger" id="admin-login-btn" onclick="handleAdminAuthBtn()">LOGIN ADMIN</button>
+    </div>
+
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-title">MENU NAVIGATION</div>
+            <button class="close-sidebar" onclick="toggleSidebar()">✕</button>
+        </div>
+        <ul class="sidebar-menu">
+            <li class="menu-item active" onclick="switchPage('page-dashboard', event)">Dashboard Utama</li>
+            <li class="menu-item" onclick="switchPage('page-buat-ssh', event)">Buat Akun SSH</li>
+            <li class="menu-item" onclick="switchPage('page-set-ssh', event)">Pengaturan SSH</li>
+            <li class="menu-item" onclick="switchPage('page-set-v2ray', event)">Pengaturan V2Ray / VMess</li>
+            <li class="menu-item" onclick="switchPage('page-set-cfip', event)">Pengaturan CFIP</li>
+            <li class="menu-item" onclick="switchPage('page-generator', event)">Config Generator</li>
+        </ul>
+        <div style="padding: 15px 20px; border-top: 1px solid #f1f5f9;">
+            <span id="btn-change-pass" onclick="changeAdminPassUI()" style="color: #0284c7; cursor: pointer; font-size: 11px; font-weight: 600; text-decoration: underline; display: none;">GANTI PASS ADMIN</span>
+        </div>
+    </div>
+
+    <div class="main-wrapper">
+        <div class="container">
+            
+            <!-- 🏠 HALAMAN 1: DASHBOARD UTAMA -->
+            <div id="page-dashboard" class="page-section active">
+                <div style="text-align:center; margin-bottom: 12px;">
+                    <h1 style="font-size:16px; color:#0f172a; text-transform:uppercase; font-weight:800;">DASHBOARD SERVER</h1>
+                    <div class="dev-tag">DYNAMIC TRIPLE-TUNNEL NODE CORE ACTIVE</div>
+                </div>
+
+                <div class="status-container"><div class="status-badge"><span>ALL TUNNELS ONLINE</span></div></div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card" style="grid-column: span 2;"><div class="stat-title">CPU Model</div><div class="stat-value" id="cpu" style="font-size:11px; color:#1e293b;">Loading...</div></div>
+                    <div class="stat-card"><div class="stat-title">RAM Used / Total</div><div class="stat-value" id="ram">Loading...</div></div>
+                    <div class="stat-card"><div class="stat-title">Disk Usage (/)</div><div class="stat-value" id="disk">Loading...</div></div>
+                    <div class="stat-card"><div class="stat-title">Server Uptime</div><div class="stat-value" id="uptime" style="font-size:11px;">Loading...</div></div>
+                    <div class="stat-card"><div class="stat-title">SSH Online</div><div class="stat-value" id="ssh" style="font-size:12px; line-height:1.2;">0 Users</div></div>
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <button class="btn-token-trigger" onclick="promptSingleTokenInput()">MASUKKAN TOKEN ARGO TUNNEL</button>
+                </div>
+
+                <div class="sub-box" style="margin-bottom: 12px;">
+                    <div class="sub-box-title" style="text-align:center; display:block;">INFO PENGATURAN SERVER</div>
+                    <div style="font-size: 11px; color: #475569; text-align: center; font-weight: 600; line-height: 1.6;">
+                        <span>CFIP: </span><span id="display-cfip" style="font-family:ui-monospace, monospace; color:#0f172a;">Loading...</span> | 
+                        <span>DNS: </span><span id="display-dns" style="font-family:ui-monospace, monospace; color:#0f172a;">UDP</span> | 
+                        <span>ENGINE: </span><span id="display-engine" style="font-family:ui-monospace, monospace; color:#0f172a;">WS</span><br>
+                        <span>PORT: </span><span id="display-ws-port" style="font-family:ui-monospace, monospace; color:#0f172a;">22</span> | 
+                        <span>KEEPALIVE: </span><span id="display-ws-keep" style="font-family:ui-monospace, monospace; color:#0f172a;">15000ms</span> | 
+                        <span>BBR: </span><span id="display-bbr" style="font-family:ui-monospace, monospace; color:#0f172a;">ON</span> | 
+                        <span>UDPGW: </span><span id="display-udpgw" style="font-family:ui-monospace, monospace; color:#0f172a;">7300</span>
+                    </div>
+                </div>
+
+                <!-- 1. REALITY SERVER (RAILWAY PUBLIC DOMAIN) -->
+                <div class="url-section">
+                    <div class="url-header"><span class="url-title">server vles vmes trojan REALITY</span></div>
+                    <div class="url-content-row">
+                        <div class="url-box" id="railway-url">Loading Railway Domain...</div>
+                        <button class="btn-copy-mini" id="btn-copy-railway" onclick="copyTxt('railway-url', 'btn-copy-railway')">Copy</button>
+                    </div>
+                </div>
+
+                <!-- 2. SSH SNI SERVER (RAILWAY TCP PROXY / SNI) -->
+                <div class="url-section">
+                    <div class="url-header"><span class="url-title">SSH SNI Server</span></div>
+                    <div class="url-content-row">
+                        <div class="url-box" id="sni-url">Loading...</div>
+                        <button class="btn-copy-mini" id="btn-copy-sni" onclick="copyTxt('sni-url', 'btn-copy-sni')">Copy</button>
+                    </div>
+                </div>
+
+                <!-- 3. SSH WS DOMAIN -->
+                <div class="url-section">
+                    <div class="url-header"><span class="url-title">SSH WS Domain</span></div>
+                    <div class="url-content-row">
+                        <div id="zt-container" style="flex:1; overflow:hidden;"><div class="url-box" id="named-url">Menghubungkan...</div></div>
+                        <button class="btn-copy-mini" id="btn-copy-named" onclick="copyTxt('named-url', 'btn-copy-named')">Copy</button>
+                    </div>
+                </div>
+
+                <!-- 4. VMESS / VLESS DOMAIN -->
+                <div class="url-section">
+                    <div class="url-header"><span class="url-title">VMess / VLess Domain</span></div>
+                    <div class="url-content-row">
+                        <div id="zt-vmess-container" style="flex:1; overflow:hidden;"><div class="url-box" id="vmess-named-url">Menghubungkan...</div></div>
+                        <button class="btn-copy-mini" id="btn-copy-vmess-named" onclick="copyTxt('vmess-named-url', 'btn-copy-vmess-named')">Copy</button>
+                    </div>
+                </div>
+
+                <!-- 5. QUICK TUNNEL SUB -->
+                <div class="url-section">
+                    <div class="url-header"><span class="url-title">Quick Tunnel Sub</span></div>
+                    <div class="url-content-row">
+                        <div class="url-box" id="quick-url">Loading...</div>
+                        <button class="btn-copy-mini" id="btn-copy-quick" onclick="copyTxt('quick-url', 'btn-copy-quick')">Copy</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ➕ HALAMAN 2: BUAT AKUN SSH -->
+            <div id="page-buat-ssh" class="page-section">
+                <div class="ssh-manager">
+                    <div class="ssh-title"><span>BUAT AKUN SSH BARU</span><span id="admin-indicator" class="admin-status-lbl">PUBLIC CREATION</span></div>
+                    <div class="input-group">
+                        <input type="text" id="ssh-user" class="input-ssh" placeholder="Username...">
+                        <input type="password" id="ssh-pass" class="input-ssh" placeholder="Password...">
+                        <button class="btn-add" id="btn-add-ssh" onclick="createAccount()">ADD</button>
+                    </div>
+                    <div id="ssh-result" class="result-box"></div>
+                    <button id="btn-copy-acc" class="btn-copy-result" onclick="copyAccountText()">COPY DETAIL AKUN</button>
+                    <div id="ssh-msg" style="font-size: 11px; margin-top: 5px; font-weight: bold; color: #dc2626;"></div>
+                    
+                    <div class="ssh-title" style="margin-top: 15px; border-top: 1px solid #f1f5f9; padding-top: 10px;">DAFTAR AKUN TERDAFTAR</div>
+                    <table class="ssh-list">
+                        <thead><tr><th>Username</th><th>Shell Path</th><th style="text-align: right;">Aksi</th></tr></thead>
+                        <tbody id="ssh-table-body"><tr><td colspan="3" style="text-align:center; color:#94a3b8;">Loading accounts...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 🔌 HALAMAN 3: SETTING SSH SERVER -->
+            <div id="page-set-ssh" class="page-section">
+                <div class="zt-admin-card">
+                    <div class="sub-box" style="margin-bottom:0;">
+                        <div class="sub-box-title">PENGATURAN SSH SERVER</div>
+                        <div class="grid-3" style="margin-top:4px;">
+                            <div>
+                                <label class="lbl-vpn">PORT DROPBEAR</label>
+                                <select id="wsPortDropdown" class="input-ssh" onchange="toggleCustomWsPortInput()">
+                                    <option value="22">Port 22 (OpenSSH)</option>
+                                    <option value="109">Port 109 (Dropbear Direct)</option>
+                                    <option value="143">Port 143 (Dropbear Alt)</option>
+                                    <option value="447">Port 447 (SSL Stunnel)</option>
+                                    <option value="custom">Custom...</option>
+                                </select>
+                                <input type="number" id="wsPortInput" class="input-ssh" placeholder="Port..." style="display:none; margin-top:4px;">
+                            </div>
+                            <div>
+                                <label class="lbl-vpn">KEEPALIVE</label>
+                                <select id="wsKeepDropdown" class="input-ssh" onchange="toggleCustomWsKeepInput()">
+                                    <option value="5000">5000 (5s)</option>
+                                    <option value="15000">15000 (15s)</option>
+                                    <option value="30000">30000 (30s)</option>
+                                    <option value="custom">Custom...</option>
+                                </select>
+                                <input type="number" id="wsKeepInput" class="input-ssh" placeholder="MS..." style="display:none; margin-top:4px;">
+                            </div>
+                            <div>
+                                <label class="lbl-vpn">MAX BUFFER</label>
+                                <select id="wsBufDropdown" class="input-ssh" onchange="toggleCustomWsBufInput()">
+                                    <option value="16384">16384 (16KB)</option>
+                                    <option value="32768">32768 (32KB)</option>
+                                    <option value="65536">65536 (64KB)</option>
+                                    <option value="custom">Custom...</option>
+                                </select>
+                                <input type="number" id="wsBufInput" class="input-ssh" placeholder="Bytes..." style="display:none; margin-top:4px;">
+                            </div>
+                        </div>
+
+                        <div style="margin-top:10px; border-top:1px solid #e2e8f0; padding-top:8px;">
+                            <div>
+                                <label class="lbl-vpn">BANNER DROPBEAR</label>
+                                <textarea id="bannerInput" class="input-ssh" style="height:50px; font-family:ui-monospace, monospace; font-size:10px;" placeholder="Kosongkan untuk banner standar..."></textarea>
+                            </div>
+
+                            <div class="grid-2" style="margin-top:6px; margin-bottom:0;">
+                                <div>
+                                    <label class="lbl-vpn">TCP BBR</label>
+                                    <select id="bbrSelect" class="input-ssh" style="font-weight:bold;">
+                                        <option value="true">ON</option>
+                                        <option value="false">OFF</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="lbl-vpn">UDPGW PORT</label>
+                                    <select id="udpgwPortSelect" class="input-ssh" style="font-weight:bold;">
+                                        <option value="7300">Port 7300</option>
+                                        <option value="7200">Port 7200</option>
+                                        <option value="7100">Port 7100</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button class="btn-token-trigger" style="margin-top:8px; padding:8px;" onclick="saveWsProxySettingUI()">SIMPAN SSH CONFIG</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ⚙️ HALAMAN 4: SETTING V2RAY SERVER -->
+            <div id="page-set-v2ray" class="page-section">
+                <div class="zt-admin-card">
+                    <div class="sub-box" style="margin-bottom:0;">
+                        <div class="sub-box-title">PENGATURAN V2RAY SERVER</div>
+                        <div style="display: flex; flex-direction: column; gap: 6px;">
+                            <div class="grid-2" style="margin-bottom:0;">
+                                <div>
+                                    <label class="lbl-vpn">DNS MODE</label>
+                                    <select id="dnsTypeSelect" class="input-ssh" style="font-weight: bold;" onchange="toggleDnsPlaceholder()">
+                                        <option value="udp">UDP Fast DNS</option>
+                                        <option value="doh">DoH Secure DNS</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="lbl-vpn">ENGINE MODE</label>
+                                    <select id="engineSelect" class="input-ssh" style="font-weight: bold;">
+                                        <option value="ws">WebSocket (WS)</option>
+                                        <option value="grpc">gRPC Engine</option>
+                                        <option value="h2">HTTP/2 (H2)</option>
+                                        <option value="tcp">TCP Direct</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="lbl-vpn">CUSTOM DNS IP / DOH URL</label>
+                                <select id="dnsDropdown" class="input-ssh" onchange="toggleCustomDnsInput()">
+                                    <option value="8.8.8.8">Google DNS (8.8.8.8)</option>
+                                    <option value="1.1.1.1">Cloudflare DNS (1.1.1.1)</option>
+                                    <option value="9.9.9.9">Quad9 DNS (9.9.9.9)</option>
+                                    <option value="https://1.1.1.1/dns-query">Cloudflare DoH</option>
+                                    <option value="https://dns.google/dns-query">Google DoH</option>
+                                    <option value="custom">Custom...</option>
+                                </select>
+                                <input type="text" id="customDnsInput" class="input-ssh" placeholder="Ketik DNS Manual..." style="display:none; margin-top:4px;">
+                            </div>
+
+                            <button class="btn-token-trigger" style="margin-top: 4px; padding:8px;" onclick="saveDnsNetworkSetting()">SIMPAN V2RAY CONFIG</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 🚀 HALAMAN 5: SETTING CFIP -->
+            <div id="page-set-cfip" class="page-section">
+                <div class="zt-admin-card">
+                    <div class="sub-box" style="margin-bottom:0;">
+                        <div class="sub-box-title">CLOUDFLARE CLEAN IP (CFIP)</div>
+                        <p style="font-size: 11px; color: #64748b; margin-bottom: 10px; line-height: 1.5;">Atur IP Cloudflare yang bersih untuk kestabilan koneksi.</p>
+                        <button class="btn-token-trigger" style="padding:10px;" onclick="promptCfipInput()">UBAH / RESET CFIP</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ⚡ HALAMAN 6: CONFIG GENERATOR -->
+            <div id="page-generator" class="page-section">
+                <div class="card-blue" style="margin-top:0;">
+                  <div style="text-align: center; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                    <span style="font-size: 12px; font-weight: 700; color: #0f172a;">CONFIG GENERATOR</span>
+                  </div>
+                  
+                  <div class="grid-2">
+                    <div>
+                      <label class="lbl-vpn">UUID / PASS</label>
+                      <input id="uuidInput" type="text" value="Loading..." class="input-ssh" style="font-family: ui-monospace, monospace;" readonly>
+                    </div>
+                    <div>
+                      <label class="lbl-vpn">TARGET DOMAIN</label>
+                      <select id="domainSelect" class="input-ssh" style="font-family: ui-monospace, monospace; font-weight: bold;">
+                        <option value="">-- Menunggu Domain --</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="grid-2">
+                    <div>
+                      <label class="lbl-vpn">BUG HOST (SNI / CDN)</label>
+                      <input id="bugInput" type="text" value="v.whatsapp.net" class="input-ssh" style="font-family: ui-monospace, monospace;">
+                    </div>
+                    <div>
+                      <label class="lbl-vpn">PORT TARGET</label>
+                      <select id="portSelect" class="input-ssh" style="font-family: ui-monospace, monospace; font-weight: bold;">
+                        <option value="443">Port 443 (TLS + Auto FP)</option>
+                        <option value="80">Port 80 (NTLS / Direct)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <!-- 🔹 FITUR FORMAT CONVERTER (CLASH & SINGBOX) -->
+                  <div style="margin-bottom: 10px;">
+                    <label class="lbl-vpn">FORMAT OUTPUT CONFIG</label>
+                    <select id="formatSelect" class="input-ssh" style="font-family: ui-monospace, monospace; font-weight: bold;">
+                      <option value="standard">Standard Link (v2rayNG / DarkTunnel)</option>
+                      <option value="clash_proxy">Clash - Proxy Only (YAML)</option>
+                      <option value="clash_mihomo">Clash - Mihomo (Full YAML)</option>
+                      <option value="singbox">SingBox (Full JSON)</option>
+                    </select>
+                  </div>
+
+                  <div class="border-lbl" style="color: #059669; border-color: #059669;">REALITY / RAILWAY</div>
+                  <div class="grid-3">
+                    <button onclick="buildRealityConfig('vless', event)" class="btn-blue" style="border-color:#a7f3d0; background-color:#ecfdf5; color:#047857;">VLESS REALITY</button>
+                    <button onclick="buildRealityConfig('vmess', event)" class="btn-blue" style="border-color:#a7f3d0; background-color:#ecfdf5; color:#047857;">VMESS REALITY</button>
+                    <button onclick="buildRealityConfig('trojan', event)" class="btn-blue" style="border-color:#a7f3d0; background-color:#ecfdf5; color:#047857;">TROJAN REALITY</button>
+                  </div>
+
+                  <div class="border-lbl">BUG SNI (NORMAL)</div>
+                  <div class="grid-3">
+                    <button onclick="buildConfig('vless', 'sni', event)" class="btn-blue">VLESS</button>
+                    <button onclick="buildConfig('vmess', 'sni', event)" class="btn-blue">VMESS</button>
+                    <button onclick="buildConfig('trojan', 'sni', event)" class="btn-blue">TROJAN</button>
+                  </div>
+
+                  <div class="border-lbl">BUG SNI (REVERSE)</div>
+                  <div class="grid-3">
+                    <button onclick="buildConfig('vless', 'sni_reverse', event)" class="btn-blue">VLESS REV</button>
+                    <button onclick="buildConfig('vmess', 'sni_reverse', event)" class="btn-blue">VMESS REV</button>
+                    <button onclick="buildConfig('trojan', 'sni_reverse', event)" class="btn-blue">TROJAN REV</button>
+                  </div>
+
+                  <div class="border-lbl">BUG CDN (PROXY)</div>
+                  <div class="grid-3">
+                    <button onclick="buildConfig('vless', 'cdn', event)" class="btn-blue">VLESS</button>
+                    <button onclick="buildConfig('vmess', 'cdn', event)" class="btn-blue">VMESS</button>
+                    <button onclick="buildConfig('trojan', 'cdn', event)" class="btn-blue">TROJAN</button>
+                  </div>
+
+                  <div id="output-area" class="result-box" style="margin-top: 12px; display: none;">
+                    <div style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 6px; font-size: 11px;">
+                      <span id="out-type" style="color: #0284c7;">CONFIG</span>
+                      <span onclick="copyOutConfig()" style="cursor: pointer; text-decoration: underline; color: #0284c7;">[COPY]</span>
+                    </div>
+                    <p id="configText" style="word-break: break-all; color: #0f172a; max-height: 120px; overflow-y: auto; font-family: ui-monospace, monospace; white-space: pre-wrap;"></p>
+                  </div>
+                </div>
+            </div>
+
+            <p class="note">Single terowongan multi-host berjalan sinkron.<br>Node.js Core Engine Rendering System.</p>
+        </div>
+    </div>
+
+    <script>
+let adminToken = localStorage.getItem("admin_session_token") || "";
+let savedUsersData = []; 
+let isPassConfigured = false;
+let railwayDomainStored = "";
+
+// ========================================================
+// FUNGSI UNIVERSAL COPY (HTTPS + HTTP FALLBACK ALL BROWSER)
+// ========================================================
+function copyToClipboard(textToCopy, onSuccess) {
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(textToCopy)
+            .then(() => { if (onSuccess) onSuccess(); })
+            .catch(() => { fallbackCopyText(textToCopy, onSuccess); });
+    } else {
+        fallbackCopyText(textToCopy, onSuccess);
+    }
+}
+
+function fallbackCopyText(text, onSuccess) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.top = "-9999px";
+    textArea.style.left = "-9999px";
+    document.body.appendChild(textArea);
+    
+    textArea.focus();
+    textArea.select();
+
+    try {
+        const successful = document.execCommand('copy');
+        if (successful && onSuccess) {
+            onSuccess();
+        }
+    } catch (err) {
+        alert("Browser tidak mendukung copy otomatis!");
+    }
+
+    document.body.removeChild(textArea);
+}
+
+function toBase64(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+}
+
+// ========================================================
+// NAVIGASI & UI HANDLER
+// ========================================================
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('active');
+    document.getElementById('sidebar-overlay').classList.toggle('active');
+}
+
+function switchPage(pageId, evt) {
+    document.querySelectorAll('.page-section').forEach(page => {
+        page.classList.remove('active');
+    });
+    document.getElementById(pageId).classList.add('active');
+
+    document.querySelectorAll('.menu-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    if (evt && evt.currentTarget) {
+        evt.currentTarget.classList.add('active');
+    }
+
+    toggleSidebar();
+}
+
+function checkAdminUI() {
+    let indicator = document.getElementById('admin-indicator'); 
+    let loginBtn = document.getElementById('admin-login-btn');
+    let changePassBtn = document.getElementById('btn-change-pass');
+
+    if (!isPassConfigured) {
+        loginBtn.innerText = "SETUP PASS";
+        loginBtn.style.background = "#f8fafc"; loginBtn.style.color = "#334155";
+        if (changePassBtn) changePassBtn.style.display = "none";
+    } else if (adminToken) {
+        if (indicator) { indicator.innerText = "ADMIN ROUTE"; indicator.style.color = "#0284c7"; indicator.style.background = "#f0f9ff"; }
+        loginBtn.innerText = "LOGOUT"; loginBtn.style.background = "#fef2f2"; loginBtn.style.color = "#dc2626";
+        if (changePassBtn) changePassBtn.style.display = "inline";
+        document.querySelectorAll('.btn-del').forEach(b => b.style.display = "inline-block"); 
+        document.querySelectorAll('.btn-info').forEach(b => b.style.display = "inline-block");
+    } else {
+        if (indicator) { indicator.innerText = "PUBLIC CREATION"; indicator.style.color = "#475569"; indicator.style.background = "#f1f5f9"; }
+        loginBtn.innerText = "LOGIN ADMIN"; loginBtn.style.background = "#f8fafc"; loginBtn.style.color = "#334155";
+        if (changePassBtn) changePassBtn.style.display = "none";
+        document.querySelectorAll('.btn-del').forEach(b => b.style.display = "none"); 
+        document.querySelectorAll('.btn-info').forEach(b => b.style.display = "none");
+    }
+}
+
+function toggleDnsPlaceholder() { toggleCustomDnsInput(); }
+
+function toggleCustomDnsInput() {
+    let sel = document.getElementById('dnsDropdown').value;
+    let inp = document.getElementById('customDnsInput');
+    inp.style.display = (sel === 'custom') ? 'block' : 'none';
+}
+
+function toggleCustomWsPortInput() {
+    let sel = document.getElementById('wsPortDropdown').value;
+    let inp = document.getElementById('wsPortInput');
+    inp.style.display = (sel === 'custom') ? 'block' : 'none';
+}
+
+function toggleCustomWsKeepInput() {
+    let sel = document.getElementById('wsKeepDropdown').value;
+    let inp = document.getElementById('wsKeepInput');
+    inp.style.display = (sel === 'custom') ? 'block' : 'none';
+}
+
+function toggleCustomWsBufInput() {
+    let sel = document.getElementById('wsBufDropdown').value;
+    let inp = document.getElementById('wsBufInput');
+    inp.style.display = (sel === 'custom') ? 'block' : 'none';
+}
+
+// ========================================================
+// ADMIN AUTHENTICATION
+// ========================================================
+async function handleAdminAuthBtn() {
+    if (!isPassConfigured) {
+        let newP = prompt("KREASI PASSWORD ADMIN PERTAMA KALI:\\nMasukkan Password Admin Baru:");
+        if (!newP) return false;
+        try {
+            let res = await fetch('/api/setup-pass?pass=' + encodeURIComponent(newP));
+            let data = await res.json();
+            alert(data.message);
+            if (data.status === "success") { 
+                adminToken = newP; 
+                localStorage.setItem("admin_session_token", adminToken); 
+                updateStats(); 
+                return true;
+            }
+        } catch(e) { alert("Gagal membuat password!"); }
+        return false;
+    }
+
+    if (adminToken) { 
+        localStorage.removeItem("admin_session_token"); 
+        adminToken = ""; 
+        checkAdminUI(); 
+        fetchAccounts(); 
+        return false; 
+    }
+    
+    let pass = prompt("Masukkan Password Admin:"); if(!pass) return false;
+    try {
+        let res = await fetch('/api/login?pass=' + encodeURIComponent(pass)); 
+        let data = await res.json();
+        if (data.status === "success") { 
+            adminToken = data.token; 
+            localStorage.setItem("admin_session_token", adminToken); 
+            checkAdminUI(); 
+            fetchAccounts(); 
+            return true;
+        } else { 
+            alert(data.message); 
+        }
+    } catch(e) { alert("Gagal terhubung"); }
+    return false;
+}
+
+async function changeAdminPassUI() {
+    if (!adminToken) return;
+    let newP = prompt("GANTI PASSWORD ADMIN:\\nMasukkan Password Admin Baru:");
+    if (!newP) return;
+    try {
+        let res = await fetch('/api/setup-pass?old_pass=' + encodeURIComponent(adminToken) + '&pass=' + encodeURIComponent(newP));
+        let data = await res.json();
+        alert(data.message);
+        if (data.status === "success") { 
+            adminToken = newP; 
+            localStorage.setItem("admin_session_token", adminToken); 
+            checkAdminUI(); 
+        }
+    } catch(e) { alert("Gagal mengupdate password!"); }
+}
+
+// ========================================================
+// API & SYSTEM SETTINGS
+// ========================================================
+async function saveDnsNetworkSetting() {
+    if (!adminToken) {
+        alert("Akses Ditolak! Anda harus Login Admin terlebih dahulu.");
+        let loggedIn = await handleAdminAuthBtn();
+        if (!loggedIn && !adminToken) return;
+    }
+
+    let dnsType = document.getElementById('dnsTypeSelect').value;
+    let selDns = document.getElementById('dnsDropdown').value;
+    let customDns = (selDns === 'custom') ? document.getElementById('customDnsInput').value.trim() : selDns;
+    let engine = document.getElementById('engineSelect').value;
+
+    if (!customDns) customDns = "8.8.8.8";
+
+    try {
+        let res = await fetch('/api/set-network?pass=' + encodeURIComponent(adminToken) + '&dns_type=' + dnsType + '&custom_dns=' + encodeURIComponent(customDns) + '&engine=' + engine);
+        let data = await res.json();
+        alert(data.message);
+        if (data.status === "success") updateStats();
+    } catch(e) { alert("Gagal menyimpan konfigurasi ke backend!"); }
+}
+
+async function saveWsProxySettingUI() {
+    if (!adminToken) {
+        alert("Akses Ditolak! Anda harus Login Admin terlebih dahulu.");
+        let loggedIn = await handleAdminAuthBtn();
+        if (!loggedIn && !adminToken) return;
+    }
+
+    let selPort = document.getElementById('wsPortDropdown').value;
+    let port = (selPort === 'custom') ? document.getElementById('wsPortInput').value.trim() : selPort;
+
+    let selKeep = document.getElementById('wsKeepDropdown').value;
+    let keep = (selKeep === 'custom') ? document.getElementById('wsKeepInput').value.trim() : selKeep;
+
+    let selBuf = document.getElementById('wsBufDropdown').value;
+    let buf = (selBuf === 'custom') ? document.getElementById('wsBufInput').value.trim() : selBuf;
+
+    let banner = document.getElementById('bannerInput').value.trim();
+    let bbr = document.getElementById('bbrSelect').value;
+    let udpgw = document.getElementById('udpgwPortSelect').value;
+
+    if (!port) port = "22";
+    if (!keep) keep = "15000";
+    if (!buf) buf = "32768";
+
+    try {
+        let res1 = await fetch('/api/set-wsproxy?pass=' + encodeURIComponent(adminToken) + '&ssh_port=' + port + '&keep_alive=' + keep + '&max_buffer=' + buf);
+        let data1 = await res1.json();
+
+        let res2 = await fetch('/api/set-system?pass=' + encodeURIComponent(adminToken) + '&banner=' + encodeURIComponent(banner) + '&enable_bbr=' + bbr + '&udpgw_port=' + udpgw);
+        let data2 = await res2.json();
+
+        alert(data1.message + "\\n" + data2.message);
+        updateStats();
+    } catch(e) { alert("Gagal memperbarui SSH Config!"); }
+}
+
+async function promptSingleTokenInput() {
+    if (!adminToken) {
+        alert("Akses Ditolak! Anda harus Login Admin terlebih dahulu.");
+        let loggedIn = await handleAdminAuthBtn();
+        if (!loggedIn && !adminToken) return;
+    }
+
+    let inputToken = prompt("MASUKKAN TOKEN CLOUDFLARE ARGO:\\n\\n(Kosongkan lalu klik OK jika ingin menghapus token tersimpan)");
+    if (inputToken === null) return;
+
+    try {
+        let res = await fetch('/api/set-token?pass=' + encodeURIComponent(adminToken) + '&token=' + encodeURIComponent(inputToken.trim()));
+        let data = await res.json();
+        alert(data.message);
+        updateStats();
+    } catch(e) { alert("Gagal memperbarui token!"); }
+}
+
+async function promptCfipInput() {
+    if (!adminToken) {
+        alert("Akses Ditolak! Anda harus Login Admin terlebih dahulu.");
+        let loggedIn = await handleAdminAuthBtn();
+        if (!loggedIn && !adminToken) return;
+    }
+
+    let inputIp = prompt("MASUKKAN IP CLEAN CLOUDFLARE (CFIP):\\nContoh: 104.17.3.81\\n\\n(Kosongkan untuk reset ke default)");
+    if (inputIp === null) return;
+
+    try {
+        let res = await fetch('/api/set-cfip?pass=' + encodeURIComponent(adminToken) + '&ip=' + encodeURIComponent(inputIp.trim()));
+        let data = await res.json();
+        alert(data.message);
+        updateStats();
+    } catch(e) { alert("Gagal memperbarui CFIP!"); }
+}
+
+async function updateStats() {
+    try {
+        let res = await fetch('/api/stats'); 
+        let data = await res.json();
+        isPassConfigured = data.pass_configured;
+        checkAdminUI();
+
+        document.getElementById('cpu').innerText = data.cpu_model || "N/A"; 
+        document.getElementById('ram').innerText = (data.ram_used || "0") + " / " + (data.ram_total || "0"); 
+        document.getElementById('disk').innerText = data.disk_usage || "0%"; 
+        document.getElementById('uptime').innerText = data.uptime || "0 Hours";
+        let detailActiveList = data.user_list_details || "Semua user offline";
+        document.getElementById('ssh').innerHTML = (data.ssh_online || "0") + " Active<br><span style='font-size:9px; font-weight:normal; color:#64748b; display:block; margin-top:2px; white-space:pre-line;'>" + detailActiveList + "</span>";
+        document.getElementById('display-cfip').innerText = data.active_cfip || "Default";
+
+        if (data.dns_type) {
+            document.getElementById('dnsTypeSelect').value = data.dns_type;
+            document.getElementById('display-dns').innerText = (data.dns_type + " (" + (data.custom_dns || "8.8.8.8") + ")").toUpperCase();
+        }
+        if (data.custom_dns) {
+            let dropdown = document.getElementById('dnsDropdown');
+            let found = Array.from(dropdown.options).some(opt => opt.value === data.custom_dns);
+            if (found) {
+                dropdown.value = data.custom_dns;
+            } else {
+                dropdown.value = 'custom';
+                document.getElementById('customDnsInput').value = data.custom_dns;
+            }
+            toggleCustomDnsInput();
+        }
+        if (data.engine_mode) {
+            document.getElementById('engineSelect').value = data.engine_mode;
+            document.getElementById('display-engine').innerText = data.engine_mode.toUpperCase();
+        }
+        if (data.ws_proxy_cfg) {
+            let pDrop = document.getElementById('wsPortDropdown');
+            let foundP = Array.from(pDrop.options).some(opt => opt.value == data.ws_proxy_cfg.sshPort);
+            if (foundP) { pDrop.value = data.ws_proxy_cfg.sshPort; } else { pDrop.value = 'custom'; document.getElementById('wsPortInput').value = data.ws_proxy_cfg.sshPort; }
+            toggleCustomWsPortInput();
+
+            let kDrop = document.getElementById('wsKeepDropdown');
+            let foundK = Array.from(kDrop.options).some(opt => opt.value == data.ws_proxy_cfg.keepAlive);
+            if (foundK) { kDrop.value = data.ws_proxy_cfg.keepAlive; } else { kDrop.value = 'custom'; document.getElementById('wsKeepInput').value = data.ws_proxy_cfg.keepAlive; }
+            toggleCustomWsKeepInput();
+
+            let bDrop = document.getElementById('wsBufDropdown');
+            let foundB = Array.from(bDrop.options).some(opt => opt.value == data.ws_proxy_cfg.maxBuffer);
+            if (foundB) { bDrop.value = data.ws_proxy_cfg.maxBuffer; } else { bDrop.value = 'custom'; document.getElementById('wsBufInput').value = data.ws_proxy_cfg.maxBuffer; }
+            toggleCustomWsBufInput();
+
+            document.getElementById('display-ws-port').innerText = data.ws_proxy_cfg.sshPort;
+            document.getElementById('display-ws-keep').innerText = (data.ws_proxy_cfg.keepAlive || 15000) + "ms";
+        }
+
+        if (data.sys_settings) {
+            if (data.sys_settings.banner) document.getElementById('bannerInput').value = data.sys_settings.banner;
+            if (data.sys_settings.enable_bbr) document.getElementById('bbrSelect').value = data.sys_settings.enable_bbr;
+            if (data.sys_settings.udpgw_port) document.getElementById('udpgwPortSelect').value = data.sys_settings.udpgw_port;
+
+            document.getElementById('display-bbr').innerText = (data.sys_settings.enable_bbr === "true") ? "ON" : "OFF";
+            document.getElementById('display-udpgw').innerText = data.sys_settings.udpgw_port || "7300";
+        }
+
+        let ztContainer = document.getElementById('zt-container');
+        if (data.zt_domains && data.zt_domains.length > 1) {
+            let dropdownHtml = '<select id="named-url" class="select-zt-mini" onmousedown="event.stopPropagation()">';
+            data.zt_domains.forEach(item => { dropdownHtml += '<option value="' + item.domain + '">' + item.domain + ' (' + item.port + ')</option>'; });
+            dropdownHtml += '</select>';
+            ztContainer.innerHTML = dropdownHtml;
+        } else if (data.zt_domains && data.zt_domains.length === 1) {
+            ztContainer.innerHTML = '<div class="url-box" id="named-url">' + data.zt_domains[0].domain + '</div>';
+        } else {
+            ztContainer.innerHTML = '<div class="url-box" id="named-url">Menghubungkan...</div>';
+        }
+
+        let ztVmessContainer = document.getElementById('zt-vmess-container');
+        if (data.zt_vmess_domains && data.zt_vmess_domains.length > 1) {
+            let dropdownVmessHtml = '<select id="vmess-named-url" class="select-zt-mini" onmousedown="event.stopPropagation()">';
+            data.zt_vmess_domains.forEach(item => { dropdownVmessHtml += '<option value="' + item.domain + '">' + item.domain + ' (' + item.port + ')</option>'; });
+            dropdownVmessHtml += '</select>';
+            ztVmessContainer.innerHTML = dropdownVmessHtml;
+        } else if (data.zt_vmess_domains && data.zt_vmess_domains.length === 1) {
+            ztVmessContainer.innerHTML = '<div class="url-box" id="vmess-named-url">' + data.zt_vmess_domains[0].domain + '</div>';
+        } else {
+            ztVmessContainer.innerHTML = '<div class="url-box" id="vmess-named-url">Menghubungkan...</div>';
+        }
+
+        railwayDomainStored = data.railway_public && data.railway_public !== "Tidak Aktif" ? data.railway_public : "";
+        document.getElementById('railway-url').innerText = data.railway_public || "Tidak Aktif"; 
+        document.getElementById('sni-url').innerText = data.railway_sni || "Tidak Aktif"; 
+        document.getElementById('quick-url').innerText = data.quick_url || "Menunggu Quick Tunnel...";
+
+        // POPULASI DROPDOWN GENERATOR DOMAIN (AUTO-DETECT URL WOKKU)
+        let currentHostDomain = window.location.hostname;
+        let domainSelect = document.getElementById('domainSelect');
+        let currentSelected = domainSelect.value;
+        let optionsHtml = '';
+
+        if (currentHostDomain) {
+            optionsHtml += '<option value="' + currentHostDomain + '">Domain Utama: ' + currentHostDomain + '</option>';
+        }
+
+        if (railwayDomainStored) {
+            optionsHtml += '<option value="' + railwayDomainStored + '">Railway Reality: ' + railwayDomainStored + '</option>';
+        }
+
+        if (data.quick_url && !data.quick_url.includes("Menunggu")) {
+            optionsHtml += '<option value="' + data.quick_url + '">Quick Tunnel: ' + data.quick_url + '</option>';
+        }
+
+        if (data.zt_vmess_domains && data.zt_vmess_domains.length > 0) {
+            data.zt_vmess_domains.forEach(d => {
+                optionsHtml += '<option value="' + d.domain + '">Zero Argo: ' + d.domain + '</option>';
+            });
+        }
+
+        if (!optionsHtml) {
+            optionsHtml = '<option value="">-- Menunggu Domain --</option>';
+        }
+
+        domainSelect.innerHTML = optionsHtml;
+        if (currentSelected) domainSelect.value = currentSelected;
+
+    } catch(e) {}
+}
+
+// ========================================================
+// MANAJEMEN AKUN SSH
+// ========================================================
+async function fetchAccounts() {
+    try {
+        let res = await fetch('/api/list'); 
+        let data = await res.json(); 
+        let tbody = document.getElementById('ssh-table-body'); 
+        tbody.innerHTML = "";
+        
+        if (data.status === "success" && data.users.length > 0) {
+            savedUsersData = data.users; 
+            data.users.forEach(u => {
+                tbody.innerHTML += '<tr><td style="font-weight:bold; color:#0f172a;">'+u.username+'</td><td style="color:#475569;">'+u.shell+'</td><td style="text-align: right;"><div class="btn-action-group"><button class="btn-info" onclick="showAccountDetails(\\''+u.username+'\\')">INFO</button><button class="btn-del" onclick="deleteAccount(\\''+u.username+'\\')">HAPUS</button></div></td></tr>';
+            });
+            checkAdminUI();
+        } else { 
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#94a3b8;">Belum ada akun SSH kustom</td></tr>'; 
+        }
+    } catch(e) {}
+}
+
+function showAccountDetails(username) { 
+    let userObj = savedUsersData.find(u => u.username === username); 
+    if (userObj) { 
+        alert("DATA AKUN:\\n===============================\\nUsername   : " + userObj.username + "\\nPassword   : " + userObj.password + "\\nIP Address : " + userObj.ip); 
+    } 
+}
+
+async function createAccount() {
+    let user = document.getElementById('ssh-user').value.trim(); 
+    let pass = document.getElementById('ssh-pass').value.trim(); 
+    let msg = document.getElementById('ssh-msg'); 
+    let resBox = document.getElementById('ssh-result'); 
+    let copyBtn = document.getElementById('btn-copy-acc');
+
+    if (!user || !pass) { 
+        msg.style.color = "#dc2626"; 
+        msg.innerText = "Isi username & password!"; 
+        return; 
+    }
+    
+    try {
+        let res = await fetch('/api/add?user=' + encodeURIComponent(user) + '&pass=' + encodeURIComponent(pass)); 
+        let data = await res.json();
+        if (data.status === "success") { 
+            msg.innerText = ""; 
+            resBox.innerText = data.message; 
+            resBox.style.display = "block"; 
+            copyBtn.style.display = "block"; 
+            document.getElementById('ssh-user').value = ""; 
+            document.getElementById('ssh-pass').value = ""; 
+            fetchAccounts(); 
+        } else { 
+            msg.style.color = "#dc2626"; 
+            msg.innerText = data.message; 
+            resBox.style.display = "none"; 
+            copyBtn.style.display = "none"; 
+        }
+    } catch(e) { msg.innerText = "Gagal memproses API"; }
+}
+
+async function deleteAccount(username) {
+    if (!adminToken) { alert("Aksi Ilegal! Login Admin dulu Bos!"); return; }
+    if (confirm("Hapus akun SSH " + username + "?")) {
+        try {
+            let res = await fetch('/api/delete?user=' + encodeURIComponent(username) + '&token=' + encodeURIComponent(adminToken)); 
+            let data = await res.json();
+            if (data.status === "success") { fetchAccounts(); } else { alert(data.message); }
+        } catch(e) {}
+    }
+}
+
+// ========================================================
+// AKSI COPY TOMBOL
+// ========================================================
+function copyTxt(elementId, btnId) {
+    let elem = document.getElementById(elementId);
+    if (!elem) return;
+    let urlText = elem.tagName === "SELECT" ? elem.value : elem.innerText;
+    
+    if (!urlText.includes("Menunggu") && !urlText.includes("Tidak Aktif")) {
+        copyToClipboard(urlText, () => {
+            let btn = document.getElementById(btnId);
+            btn.innerText = "Done"; 
+            btn.style.background = "#e2e8f0"; 
+            btn.style.color = "#0284c7";
+            setTimeout(() => { 
+                btn.innerText = "Copy"; 
+                btn.style.background = "#ffffff"; 
+                btn.style.color = "#334155"; 
+            }, 1500);
+        });
+    }
+}
+
+function copyAccountText() { 
+    let txt = document.getElementById('ssh-result').innerText; 
+    copyToClipboard(txt, () => {
+        let btn = document.getElementById('btn-copy-acc'); 
+        btn.innerText = "COPIED!"; 
+        setTimeout(() => { btn.innerText = "COPY DETAIL AKUN"; }, 1500);
+    });
+}
+
+function copyOutConfig() {
+    let txt = document.getElementById('configText').innerText;
+    copyToClipboard(txt, () => {
+        alert('Config Berhasil Disalin!');
+    });
+}
+
+// ========================================================
+// CONVERTER GENERATOR ENGINES (CLASH & SINGBOX)
+// ========================================================
+function generateClashProxyOnly(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, finalPath, remark) {
+    const isTls = selectedPort === "443";
+    if (protocol === 'vless') {
+        return \`
+proxies:
+  - name: "\${remark}"
+    type: vless
+    server: \${targetConnect}
+    port: \${parseInt(selectedPort)}
+    uuid: \${uuid}
+    udp: true
+    tls: \${isTls}
+    servername: \${targetSni}
+    skip-cert-verify: true
+    network: ws
+    ws-opts:
+      path: "\${finalPath}"
+      headers:
+        Host: \${targetWsHost}
+\`.trim();
+    } else if (protocol === 'vmess') {
+        return \`
+proxies:
+  - name: "\${remark}"
+    type: vmess
+    server: \${targetConnect}
+    port: \${parseInt(selectedPort)}
+    uuid: \${uuid}
+    alterId: 0
+    cipher: auto
+    udp: true
+    tls: \${isTls}
+    servername: \${targetSni}
+    skip-cert-verify: true
+    network: ws
+    ws-opts:
+      path: "\${finalPath}"
+      headers:
+        Host: \${targetWsHost}
+\`.trim();
+    } else {
+        return \`
+proxies:
+  - name: "\${remark}"
+    type: trojan
+    server: \${targetConnect}
+    port: \${parseInt(selectedPort)}
+    password: \${uuid}
+    udp: true
+    sni: \${targetSni}
+    skip-cert-verify: true
+    network: ws
+    ws-opts:
+      path: "\${finalPath}"
+      headers:
+        Host: \${targetWsHost}
+\`.trim();
+    }
+}
+
+function generateClashMihomo(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, finalPath, remark) {
+    const proxyYaml = generateClashProxyOnly(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, finalPath, remark);
+    return \`
+mixed-port: 7890
+allow-lan: true
+mode: rule
+log-level: info
+ipv6: false
+
+dns:
+  enable: true
+  enhanced-mode: fake-ip
+  nameserver:
+    - 8.8.8.8
+    - 1.1.1.1
+
+\${proxyYaml}
+
+proxy-groups:
+  - name: PROXY
+    type: select
+    proxies:
+      - "\${remark}"
+      - DIRECT
+
+rules:
+  - GEOIP,LAN,DIRECT
+  - MATCH,PROXY
+\`.trim();
+}
+
+function generateSingBoxJson(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, finalPath, remark) {
+    const isTls = selectedPort === "443";
+    let outboundObj = {
+        type: protocol,
+        tag: remark,
+        server: targetConnect,
+        server_port: parseInt(selectedPort),
+        transport: {
+            type: "ws",
+            path: finalPath,
+            headers: {
+                Host: targetWsHost
+            }
+        }
+    };
+
+    if (protocol === 'vless' || protocol === 'vmess') {
+        outboundObj.uuid = uuid;
+    } else if (protocol === 'trojan') {
+        outboundObj.password = uuid;
+    }
+
+    if (isTls) {
+        outboundObj.tls = {
+            enabled: true,
+            server_name: targetSni,
+            insecure: true
+        };
+    }
+
+    const fullConfig = {
+        log: { level: "info" },
+        inbounds: [{ type: "mixed", tag: "mixed-in", listen: "127.0.0.1", listen_port: 2080 }],
+        outbounds: [outboundObj, { type: "direct", tag: "direct" }],
+        route: { auto_detect_interface: true }
+    };
+
+    return JSON.stringify(fullConfig, null, 2);
+}
+
+// ========================================================
+// CONFIG GENERATOR ENGINE (V2RAY / CLASH / SINGBOX)
+// ========================================================
+async function fetchServerInfo() {
+    try {
+        const response = await fetch('/__info');
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data.uuid) document.getElementById('uuidInput').value = data.uuid;
+        window.serverActivePaths = data.paths;
+    } catch (e) {}
+}
+
+function buildRealityConfig(protocol, evt) {
+    document.querySelectorAll('.btn-blue').forEach(b => b.classList.remove('btn-active'));
+    if (evt && evt.target) evt.target.classList.add('btn-active');
+
+    const uuid = document.getElementById('uuidInput').value.trim();
+    let targetHost = railwayDomainStored || document.getElementById('domainSelect').value.trim();
+    targetHost = targetHost.replace(/^https?:\\/\\//, '').replace(/\\/$/, '');
+    const bugHost = document.getElementById('bugInput').value.trim() || 'v.whatsapp.net';
+    
+    const pathsMapping = window.serverActivePaths || { vless: '/vless-argo', vmess: '/vmess-argo', trojan: '/trojan-argo' };
+    let basePath = pathsMapping[protocol] || '/' + protocol + '-argo';
+
+    const area = document.getElementById('output-area');
+    const label = document.getElementById('out-type');
+    const txt = document.getElementById('configText');
+
+    let protoLabel = (protocol === 'vless' ? 'VLESS' : (protocol === 'vmess' ? 'VMESS' : 'TROJAN'));
+    let remark = 'REALITY-' + protoLabel + '-' + targetHost;
+
+    let uriLink = '';
+    if (protocol === 'vless') {
+        uriLink = 'vless://' + uuid + '@' + targetHost + ':443?encryption=none&security=tls&sni=' + bugHost + '&fp=firefox&type=ws&host=' + targetHost + '&path=' + encodeURIComponent(basePath) + '#' + encodeURIComponent(remark);
+    } else if (protocol === 'vmess') {
+        let vmessObj = { v: "2", ps: remark, add: targetHost, port: "443", id: uuid, aid: "0", scy: "auto", net: "ws", type: "none", host: targetHost, path: basePath, tls: "tls", sni: bugHost, fp: "chrome" };
+        uriLink = 'vmess://' + toBase64(JSON.stringify(vmessObj));
+    } else {
+        uriLink = 'trojan://' + uuid + '@' + targetHost + ':443?security=tls&sni=' + bugHost + '&type=ws&host=' + targetHost + '&path=' + encodeURIComponent(basePath) + '#' + encodeURIComponent(remark);
+    }
+
+    label.innerText = 'REALITY ' + protoLabel;
+    txt.innerText = uriLink;
+    area.style.display = 'block';
+}
+
+function buildConfig(protocol, type, evt) {
+    document.querySelectorAll('.btn-blue').forEach(b => b.classList.remove('btn-active'));
+    if (evt && evt.target) evt.target.classList.add('btn-active');
+    
+    const uuid = document.getElementById('uuidInput').value.trim();
+    const hostSelect = document.getElementById('domainSelect');
+    const host = hostSelect.value.trim().replace(/^https?:\\/\\//, '').replace(/\\/$/, ''); 
+    const bugHost = document.getElementById('bugInput').value.trim() || host; 
+    const engine = document.getElementById('engineSelect').value;
+    
+    const selectedPort = document.getElementById('portSelect') ? document.getElementById('portSelect').value : "443";
+    const selectedFormat = document.getElementById('formatSelect') ? document.getElementById('formatSelect').value : "standard";
+    const isTls = selectedPort === "443";
+    const securityMode = isTls ? "tls" : "none";
+    const fpParam = isTls ? "&fp=chrome" : "";
+
+    const area = document.getElementById('output-area');
+    const label = document.getElementById('out-type');
+    const txt = document.getElementById('configText');
+
+    if (!host || host.includes("Menunggu")) {
+        alert("Domain Tunnel belum siap / belum dipilih!");
+        return;
+    }
+
+    const pathsMapping = window.serverActivePaths || { vless: '/vless-argo', vmess: '/vmess-argo', trojan: '/trojan-argo' };
+    let basePath = pathsMapping[protocol] || '/' + protocol + '-argo';
+    
+    let remark = 'DDFATHU-' + protocol.toUpperCase() + '-' + type.toUpperCase() + '-' + selectedPort;
+    let configResult = '';
+
+    let netType = engine;
+    let targetConnect = (type === 'sni') ? bugHost : host;
+    let targetSni = (type === 'sni_reverse') ? bugHost : host;
+    let targetWsHost = (type === 'sni_reverse') ? bugHost : host;
+    let finalPath = (type === 'cdn') ? ('/' + bugHost + basePath) : basePath;
+
+    // --- HASIL BERDASARKAN FORMAT PILIHAN ---
+    if (selectedFormat === 'clash_proxy') {
+        label.innerText = remark + ' (CLASH PROXY)';
+        configResult = generateClashProxyOnly(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, finalPath, remark);
+    } 
+    else if (selectedFormat === 'clash_mihomo') {
+        label.innerText = remark + ' (CLASH MIHOMO)';
+        configResult = generateClashMihomo(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, finalPath, remark);
+    } 
+    else if (selectedFormat === 'singbox') {
+        label.innerText = remark + ' (SINGBOX JSON)';
+        configResult = generateSingBoxJson(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, finalPath, remark);
+    } 
+    else {
+        // STANDARD V2RAY LINK (DEFAULT)
+        label.innerText = remark;
+        if (protocol === 'vless') {
+            let q = '?encryption=none&security=' + securityMode;
+            if (isTls) q += '&sni=' + targetSni + fpParam;
+            q += '&type=' + netType;
+            if (netType === 'ws') q += '&host=' + targetWsHost + '&path=' + encodeURIComponent(finalPath);
+            
+            configResult = 'vless://' + uuid + '@' + targetConnect + ':' + selectedPort + q + '#' + encodeURIComponent(remark);
+        } 
+        else if (protocol === 'vmess') {
+            let jsonVmess = {
+                v: "2", ps: remark, add: targetConnect, port: selectedPort, id: uuid, aid: "0",
+                scy: "auto", net: netType, type: "none", host: targetWsHost, path: finalPath,
+                tls: isTls ? "tls" : "", sni: isTls ? targetSni : "", fp: isTls ? "chrome" : ""
+            };
+            configResult = 'vmess://' + toBase64(JSON.stringify(jsonVmess));
+        } 
+        else if (protocol === 'trojan') {
+            let q = '?security=' + securityMode;
+            if (isTls) q += '&sni=' + targetSni + fpParam;
+            q += '&type=' + netType;
+            if (netType === 'ws') q += '&host=' + targetWsHost + '&path=' + encodeURIComponent(finalPath);
+            
+            configResult = 'trojan://' + uuid + '@' + targetConnect + ':' + selectedPort + q + '#' + encodeURIComponent(remark);
+        }
+    }
+
+    txt.innerText = configResult;
+    area.style.display = 'block';
+}
+
+// ========================================================
+// INISIALISASI HALAMAN
+// ========================================================
+setInterval(updateStats, 300000); 
+updateStats(); 
+fetchAccounts();
+fetchServerInfo();
+    </script>
+</body>
+</html>`;
+
+// ========================================================
 // HTTP SERVER (API & STATIC FILES HANDLER)
 // ========================================================
 const server = http.createServer(async (req, res) => {
@@ -743,41 +2521,15 @@ const server = http.createServer(async (req, res) => {
         }));
     }
 
-    // --- SERVING FILE STATIS (HTML, CSS, JS) ---
-    if (pathName === '/' || pathName === '/index.html') {
-        const filePath = path.join(__dirname, 'index.html');
-        if (fs.existsSync(filePath)) {
-            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-            return res.end(fs.readFileSync(filePath, 'utf-8'));
-        } else {
-            res.writeHead(404, { 'Content-Type': 'text/plain' });
-            return res.end("index.html tidak ditemukan!");
-        }
+    // --- HALAMAN UTAMA (PANEL) ---
+    // index.html eksternal sudah dihapus: halaman utama langsung
+    // menyajikan PANEL_HTML (UI + CSS + JS inline) dari file ini.
+    if (pathName === '/' || pathName === '/index.html' || pathName === '/ui') {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        return res.end(PANEL_HTML);
     }
 
-    if (pathName === '/style.css') {
-        const filePath = path.join(__dirname, 'style.css');
-        if (fs.existsSync(filePath)) {
-            res.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8' });
-            return res.end(fs.readFileSync(filePath, 'utf-8'));
-        } else {
-            res.writeHead(404, { 'Content-Type': 'text/plain' });
-            return res.end("style.css tidak ditemukan!");
-        }
-    }
-
-    if (pathName === '/app.js') {
-        const filePath = path.join(__dirname, 'app.js');
-        if (fs.existsSync(filePath)) {
-            res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
-            return res.end(fs.readFileSync(filePath, 'utf-8'));
-        } else {
-            res.writeHead(404, { 'Content-Type': 'text/plain' });
-            return res.end("app.js tidak ditemukan!");
-        }
-    }
-
-    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end("Not Found");
 });
 
