@@ -21,6 +21,7 @@ fuser -k 8880/tcp 2>/dev/null
 fuser -k 8881/tcp 2>/dev/null
 fuser -k 8882/tcp 2>/dev/null
 fuser -k 8081/tcp 2>/dev/null
+fuser -k 8082/tcp 2>/dev/null
 sleep 1
 
 # =================================================================

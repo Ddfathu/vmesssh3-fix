@@ -2277,7 +2277,7 @@ fetchServerInfo();
 // ========================================================
 // HTTP SERVER (API & STATIC FILES HANDLER)
 // ========================================================
-const server = http.createServer(async (req, res) => {
+const handleRequest = async (req, res) => {
     const parsedUrl = url.parse(req.url, true);
     const pathName = parsedUrl.pathname;
     const query = parsedUrl.query;
@@ -2531,7 +2531,10 @@ const server = http.createServer(async (req, res) => {
 
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end("Not Found");
-});
+};
+
+// Server utama (PORT, default 8081): UI + API + gateway WebSocket ke Xray/SSH
+const server = http.createServer(handleRequest);
 
 // ========================================================
 // HANDLER WEBSOCKET DUAL-MODE (UI WEB & VPN XRAY FORWARDING)
@@ -2614,4 +2617,20 @@ server.listen(PORT, () => {
             }
         });
     }, 4000);
+});
+
+// ========================================================
+// PORT KHUSUS UI (UI_PORT, default 8082)
+// Hanya melayani halaman panel + API panel (handler yang sama
+// dengan port utama), tapi semua WebSocket upgrade DITOLAK
+// (socket langsung ditutup), jadi port ini TIDAK bisa dipakai
+// sebagai node VLESS/VMess/Trojan/SSH — murni buat buka panel.
+// ========================================================
+const UI_PORT = process.env.UI_PORT || 8082;
+const uiServer = http.createServer(handleRequest);
+uiServer.on('upgrade', (req, socket) => {
+    try { socket.destroy(); } catch(e) {}
+});
+uiServer.listen(UI_PORT, () => {
+    console.log(`[UI Only] Panel-only server running on port ${UI_PORT} (WebSocket ditolak, bukan node proxy)`);
 });
