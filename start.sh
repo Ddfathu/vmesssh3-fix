@@ -19,6 +19,7 @@ pkill -9 badvpn-udpgw 2>/dev/null
 # Paksa bebaskan port jika fuser tersedia
 fuser -k 8880/tcp 2>/dev/null
 fuser -k 8881/tcp 2>/dev/null
+fuser -k 8882/tcp 2>/dev/null
 fuser -k 8081/tcp 2>/dev/null
 sleep 1
 
@@ -116,6 +117,11 @@ stunnel4 /etc/stunnel/stunnel.conf
 echo "[*] Memulai WS-Proxy untuk SSH Dropbear di Port Lokal 8880..."
 export WS_PORT="8880"
 nohup node ws-proxy.js >/dev/null 2>&1 &
+
+echo "[*] Memulai WS-Xray Gateway (Filter Payload Enhanced) di Port 8882..."
+export XRAY_WS_PORT="8882"
+export XRAY_PORT="8001"
+nohup node ws-xray.js >/dev/null 2>&1 &
 
 if [ -f /usr/local/bin/badvpn-udpgw ]; then
     echo "[*] Memulai BadVPN udpgw di Port Global ${UDPGW_PORT}..."
