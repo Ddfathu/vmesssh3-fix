@@ -138,7 +138,7 @@ function getNetworkSettings() {
             return JSON.parse(fs.readFileSync(NET_SETTING_FILE, 'utf8'));
         }
     } catch(e) {}
-    return { dns_type: "udp", custom_dns: "8.8.8.8", engine: "ws" };
+    return { dns_type: "udp", custom_dns: "8.8.8.8", engine: "all" };
 }
 
 function saveNetworkSettings(dns_type, custom_dns, engine) {
@@ -410,65 +410,44 @@ async function generateConfig() {
   const inboundsList = [];
   let nextPort = 3100;
 
-  const engine = netSettings.engine || 'ws';
+  // ======================================================
+  // SEMUA TRANSPORT SELALU AKTIF BERSAMAAN (tanpa perlu
+  // ganti-ganti engine di Pengaturan):
+  //   WS          -> path asli                 (/vless-argo)
+  //   HTTPUpgrade -> path + "-h2up"            (/vless-argo-h2up)
+  //   XHTTP       -> path + "-xhttp"           (/vless-argo-xhttp, stream-one, pengganti H2)
+  // XHTTP didaftarkan 2x di fallback (dengan & tanpa "/") karena
+  // client stream-one meminta path + "/".
+  // CATATAN: gRPC TIDAK dimasukkan — di Xray 26.x koneksi gRPC
+  // (HTTP/2) tidak bisa di-route oleh fallback port induk 8001
+  // (terverifikasi: "failed to find the default path config"),
+  // jadi menawarkannya hanya menghasilkan config yang gagal konek.
+  // ======================================================
+  const TRANSPORT_BUILDERS = [
+    { key: 'httpupgrade', make: (p) => ({ fbPath: p + '-h2up', stream: { network: 'httpupgrade', security: 'none', httpupgradeSettings: { path: p + '-h2up' } } }) },
+    { key: 'xhttp', make: (p) => ({ fbPath: [p + '-xhttp', p + '-xhttp/'], stream: { network: 'xhttp', security: 'none', xhttpSettings: { path: p + '-xhttp', host: '', mode: 'stream-one' } } }) },
+    { key: 'ws', make: (p) => ({ fbPath: p, stream: { network: 'ws', security: 'none', wsSettings: { path: p } } }) },
+  ];
 
-  let streamSettingsObj = {};
-  if (engine === 'grpc') {
-    streamSettingsObj = { network: "grpc", security: "none", grpcSettings: { serviceName: "grpc-service" } };
-  } else if (engine === 'httpupgrade') {
-    streamSettingsObj = { network: "httpupgrade", security: "none" };
-  } else if (engine === 'h2') {
-    streamSettingsObj = { network: "h2", security: "none", httpSettings: { path: "/h2-path", host: ["localhost"] } };
-  } else if (engine === 'tcp') {
-    streamSettingsObj = { network: "tcp", security: "none" };
-  } else {
-    streamSettingsObj = { network: "ws", security: "none" };
+  function addProtocolInbounds(paths, protocol, makeSettings) {
+    paths.forEach(p => {
+      for (const t of TRANSPORT_BUILDERS) {
+        const cp = nextPort++;
+        const built = t.make(p);
+        (Array.isArray(built.fbPath) ? built.fbPath : [built.fbPath]).forEach(fp => fallbacksList.push({ path: fp, dest: cp }));
+        inboundsList.push({
+          port: cp, listen: "127.0.0.1", protocol: protocol,
+          settings: makeSettings(),
+          streamSettings: built.stream,
+          sniffing: { enabled: true, destOverride: ["http", "tls", "quic"] }
+        });
+      }
+    });
   }
 
-  vlessPaths.forEach(p => { 
-    const cp = nextPort++; 
-    fallbacksList.push({ path: p, dest: cp }); 
-    let st = JSON.parse(JSON.stringify(streamSettingsObj));
-    if (engine === 'ws') st.wsSettings = { path: p };
-    if (engine === 'httpupgrade') st.httpupgradeSettings = { path: p };
-
-    inboundsList.push({ 
-        port: cp, listen: "127.0.0.1", protocol: 'vless', 
-        settings: { clients: [{ id: UUID, level: 0 }], decryption: "none" }, 
-        streamSettings: st, 
-        sniffing: { enabled: true, destOverride: ["http", "tls", "quic"] } 
-    }); 
-  });
-
-  vmessPaths.forEach(p => { 
-    const cp = nextPort++; 
-    fallbacksList.push({ path: p, dest: cp }); 
-    let st = JSON.parse(JSON.stringify(streamSettingsObj));
-    if (engine === 'ws') st.wsSettings = { path: p };
-    if (engine === 'httpupgrade') st.httpupgradeSettings = { path: p };
-
-    inboundsList.push({ 
-        port: cp, listen: "127.0.0.1", protocol: "vmess", 
-        settings: { clients: [{ id: UUID, alterId: 0 }] }, 
-        streamSettings: st, 
-        sniffing: { enabled: true, destOverride: ["http", "tls", "quic"] } 
-    }); 
-  });
-
-  trojanPaths.forEach(p => { 
-    const cp = nextPort++; 
-    fallbacksList.push({ path: p, dest: cp }); 
-    let st = JSON.parse(JSON.stringify(streamSettingsObj));
-    if (engine === 'ws') st.wsSettings = { path: p };
-    if (engine === 'httpupgrade') st.httpupgradeSettings = { path: p };
-
-    inboundsList.push({ 
-        port: cp, listen: "127.0.0.1", protocol: "trojan", 
-        settings: { clients: [{ password: UUID }] }, 
-        streamSettings: st, 
-        sniffing: { enabled: true, destOverride: ["http", "tls", "quic"] } 
-    }); 
-  });
+  addProtocolInbounds(vlessPaths, 'vless', () => ({ clients: [{ id: UUID, level: 0 }], decryption: "none" }));
+  addProtocolInbounds(vmessPaths, 'vmess', () => ({ clients: [{ id: UUID, alterId: 0 }] }));
+  addProtocolInbounds(trojanPaths, 'trojan', () => ({ clients: [{ password: UUID }] }));
 
   inboundsList.unshift({
     port: ARGO_PORT,
@@ -558,33 +537,48 @@ async function generateLinks(argoDomain) {
   const ISP = await getMetaInfo();
   const nodeName = `${NAME}-${ISP}`;
   const activeCfip = getActiveCfip();
-  const defaultVless = readPathsFromFile('pathvless.txt', '/vless-argo')[0];
-  const defaultVmess = readPathsFromFile('pathvmess.txt', '/vmess-argo')[0];
-  const defaultTrojan = readPathsFromFile('pathtrojan.txt', '/trojan-argo')[0];
-  const engineMode = (getNetworkSettings().engine || 'ws');
-  const netType = engineMode === 'httpupgrade' ? 'httpupgrade' : 'ws';
-  
-  const vmessObj = {
-    v: "2",
-    ps: nodeName,
-    add: activeCfip,
-    port: String(CFPORT),
-    id: UUID,
-    aid: "0",
-    scy: "auto",
-    net: netType,
-    type: "none",
-    host: argoDomain,
-    path: defaultVmess,
-    tls: "tls",
-    sni: argoDomain
+  const basePaths = {
+    vless: readPathsFromFile('pathvless.txt', '/vless-argo')[0],
+    vmess: readPathsFromFile('pathvmess.txt', '/vmess-argo')[0],
+    trojan: readPathsFromFile('pathtrojan.txt', '/trojan-argo')[0]
   };
-  
-  const vmessLink = `vmess://${Buffer.from(JSON.stringify(vmessObj)).toString('base64')}`;
-  const vlessLink = `vless://${UUID}@${activeCfip}:${CFPORT}?encryption=none&security=tls&sni=${argoDomain}&type=${netType}&host=${argoDomain}&path=${encodeURIComponent(defaultVless)}#${encodeURIComponent(nodeName)}`;
-  const trojanLink = `trojan://${UUID}@${activeCfip}:${CFPORT}?security=tls&sni=${argoDomain}&type=${netType}&host=${argoDomain}&path=${encodeURIComponent(defaultTrojan)}#${encodeURIComponent(nodeName)}`;
-  
-  const subTxt = `${vlessLink}\n${vmessLink}\n${trojanLink}`;
+
+  // Sub berisi SEMUA transport yang aktif (WS + H2Up + XHTTP)
+  const transports = [
+    { key: 'ws', label: 'WS', tp: (b) => b },
+    { key: 'httpupgrade', label: 'H2UP', tp: (b) => b + '-h2up' },
+    { key: 'xhttp', label: 'XHTTP', tp: (b) => b + '-xhttp' }
+  ];
+
+  const links = [];
+  for (const t of transports) {
+    for (const proto of ['vless', 'vmess', 'trojan']) {
+      const tp = t.tp(basePaths[proto]);
+      if (proto === 'vmess' && t.key === 'xhttp') continue; // VMess+XHTTP tidak didukung client umum
+      const remark = `${nodeName}-${proto.toUpperCase()}-${t.label}`;
+      if (proto === 'vmess') {
+        const vmessObj = {
+          v: "2", ps: remark, add: activeCfip, port: String(CFPORT), id: UUID, aid: "0",
+          scy: "auto", net: t.key,
+          type: t.key === 'grpc' ? 'gun' : 'none',
+          host: argoDomain, path: tp, tls: "tls", sni: argoDomain
+        };
+        links.push(`vmess://${Buffer.from(JSON.stringify(vmessObj)).toString('base64')}`);
+      } else if (proto === 'vless') {
+        const q = t.key === 'grpc'
+          ? `encryption=none&security=tls&sni=${argoDomain}&type=grpc&serviceName=${encodeURIComponent(tp)}&mode=gun`
+          : `encryption=none&security=tls&sni=${argoDomain}&type=${t.key}&host=${argoDomain}&path=${encodeURIComponent(tp)}${t.key === 'xhttp' ? '&mode=stream-one' : ''}`;
+        links.push(`vless://${UUID}@${activeCfip}:${CFPORT}?${q}#${encodeURIComponent(remark)}`);
+      } else {
+        const q = t.key === 'grpc'
+          ? `security=tls&sni=${argoDomain}&type=grpc&serviceName=${encodeURIComponent(tp)}&mode=gun`
+          : `security=tls&sni=${argoDomain}&type=${t.key}&host=${argoDomain}&path=${encodeURIComponent(tp)}${t.key === 'xhttp' ? '&mode=stream-one' : ''}`;
+        links.push(`trojan://${UUID}@${activeCfip}:${CFPORT}?${q}#${encodeURIComponent(remark)}`);
+      }
+    }
+  }
+
+  const subTxt = links.join('\n');
   subContent = Buffer.from(subTxt).toString('base64');
   fs.writeFileSync(subPath, subContent);
 }
@@ -1450,11 +1444,7 @@ body {
                                 <div>
                                     <label class="lbl-vpn">ENGINE MODE</label>
                                     <select id="engineSelect" class="input-ssh" style="font-weight: bold;">
-                                        <option value="ws">WebSocket (WS)</option>
-                                        <option value="grpc">gRPC Engine</option>
-                                        <option value="httpupgrade">HTTPUpgrade (H2Up)</option>
-                                        <option value="h2">HTTP/2 (H2)</option>
-                                        <option value="tcp">TCP Direct</option>
+                                        <option value="all">ALL (WS + H2Up + XHTTP Aktif)</option>
                                     </select>
                                 </div>
                             </div>
@@ -1521,6 +1511,16 @@ body {
                         <option value="80">Port 80 (NTLS / Direct)</option>
                       </select>
                     </div>
+                  </div>
+
+                  <!-- 🔹 PILIHAN TRANSPORT GENERATOR (bebas pilih, tanpa ubah Pengaturan) -->
+                  <div style="margin-bottom: 10px;">
+                    <label class="lbl-vpn">TRANSPORT / ENGINE</label>
+                    <select id="transportSelect" class="input-ssh" style="font-family: ui-monospace, monospace; font-weight: bold;">
+                      <option value="ws">WebSocket (WS)</option>
+                      <option value="httpupgrade">HTTPUpgrade (H2Up)</option>
+                      <option value="xhttp">XHTTP (Pengganti H2)</option>
+                    </select>
                   </div>
 
                   <!-- 🔹 FITUR FORMAT CONVERTER (CLASH & SINGBOX) -->
@@ -2101,8 +2101,20 @@ function copyOutConfig() {
 // ========================================================
 function generateClashProxyOnly(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, finalPath, remark) {
     const isTls = selectedPort === "443";
-    const tSelClash = document.getElementById('engineSelect') ? document.getElementById('engineSelect').value : 'ws';
-    const upgradeFlag = tSelClash === 'httpupgrade' ? '\\n      v2ray-http-upgrade: true' : '';
+    const tSel = (typeof document !== "undefined" && document.getElementById('transportSelect')) ? document.getElementById('transportSelect').value : 'ws';
+    const clashNetwork = (tSel === 'httpupgrade') ? 'ws' : tSel;
+    let clashOpts = '';
+    if (tSel === 'grpc') {
+        clashOpts = '    grpc-opts:\\n      grpc-service-name: "' + finalPath + '"';
+    } else if (tSel === 'h2') {
+        clashOpts = '    h2-opts:\\n      host:\\n        - ' + targetWsHost + '\\n      path: "' + finalPath + '"';
+    } else if (tSel === 'xhttp') {
+        clashOpts = '    xhttp-opts:\\n      path: "' + finalPath + '"\\n      host: ' + targetWsHost + '\\n      mode: stream-one';
+    } else if (tSel === 'httpupgrade') {
+        clashOpts = '    ws-opts:\\n      path: "' + finalPath + '"\\n      headers:\\n        Host: ' + targetWsHost + '\\n      v2ray-http-upgrade: true';
+    } else {
+        clashOpts = '    ws-opts:\\n      path: "' + finalPath + '"\\n      headers:\\n        Host: ' + targetWsHost;
+    }
     if (protocol === 'vless') {
         return \`
 proxies:
@@ -2115,11 +2127,8 @@ proxies:
     tls: \${isTls}
     servername: \${targetSni}
     skip-cert-verify: true
-    network: ws
-    ws-opts:
-      path: "\${finalPath}"
-      headers:
-        Host: \${targetWsHost}\${upgradeFlag}
+    network: \${clashNetwork}
+\${clashOpts}
 \`.trim();
     } else if (protocol === 'vmess') {
         return \`
@@ -2135,11 +2144,8 @@ proxies:
     tls: \${isTls}
     servername: \${targetSni}
     skip-cert-verify: true
-    network: ws
-    ws-opts:
-      path: "\${finalPath}"
-      headers:
-        Host: \${targetWsHost}\${upgradeFlag}
+    network: \${clashNetwork}
+\${clashOpts}
 \`.trim();
     } else {
         return \`
@@ -2152,11 +2158,8 @@ proxies:
     udp: true
     sni: \${targetSni}
     skip-cert-verify: true
-    network: ws
-    ws-opts:
-      path: "\${finalPath}"
-      headers:
-        Host: \${targetWsHost}\${upgradeFlag}
+    network: \${clashNetwork}
+\${clashOpts}
 \`.trim();
     }
 }
@@ -2194,17 +2197,20 @@ rules:
 
 function generateSingBoxJson(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, finalPath, remark) {
     const isTls = selectedPort === "443";
-    const tSelSb = document.getElementById('engineSelect') ? document.getElementById('engineSelect').value : 'ws';
-    const transportObj = tSelSb === 'httpupgrade'
-        ? { type: "httpupgrade", host: targetWsHost, path: finalPath }
-        : { type: "ws", path: finalPath, headers: { Host: targetWsHost } };
     let outboundObj = {
         type: protocol,
         tag: remark,
         server: targetConnect,
         server_port: parseInt(selectedPort),
-        transport: transportObj
+        transport: { type: "websocket", path: finalPath, headers: { Host: targetWsHost } }
     };
+
+    const sbTransport = (typeof document !== "undefined" && document.getElementById('transportSelect')) ? document.getElementById('transportSelect').value : 'ws';
+    if (sbTransport === 'grpc') {
+        outboundObj.transport = { type: "grpc", service_name: finalPath };
+    } else if (sbTransport === 'httpupgrade') {
+        outboundObj.transport = { type: "httpupgrade", host: targetWsHost, path: finalPath };
+    }
 
     if (protocol === 'vless' || protocol === 'vmess') {
         outboundObj.uuid = uuid;
@@ -2285,10 +2291,11 @@ function buildConfig(protocol, type, evt) {
     const hostSelect = document.getElementById('domainSelect');
     const host = hostSelect.value.trim().replace(/^https?:\\/\\//, '').replace(/\\/$/, ''); 
     const bugHost = document.getElementById('bugInput').value.trim() || host; 
-    const engine = document.getElementById('engineSelect').value;
+    const engine = (document.getElementById('transportSelect') ? document.getElementById('transportSelect').value : 'ws');
     
     const selectedPort = document.getElementById('portSelect') ? document.getElementById('portSelect').value : "443";
     const selectedFormat = document.getElementById('formatSelect') ? document.getElementById('formatSelect').value : "standard";
+    const effectiveFormat = (selectedFormat === 'singbox' && engine === 'xhttp') ? 'standard' : selectedFormat;
     const isTls = selectedPort === "443";
     const securityMode = isTls ? "tls" : "none";
     const fpParam = isTls ? "&fp=chrome" : "";
@@ -2312,20 +2319,26 @@ function buildConfig(protocol, type, evt) {
     let targetConnect = (type === 'sni') ? bugHost : host;
     let targetSni = (type === 'sni_reverse') ? bugHost : host;
     let targetWsHost = (type === 'sni_reverse') ? bugHost : host;
-    let finalPath = (type === 'cdn') ? ('/' + bugHost + basePath) : basePath;
+    let grpcService = basePath.replace(/^\\//, '') + '-grpc';
+    let transportPath = basePath;
+    if (engine === 'httpupgrade') transportPath = basePath + '-h2up';
+    if (engine === 'xhttp') transportPath = basePath + '-xhttp';
+    let finalPath = (type === 'cdn') ? ('/' + bugHost + transportPath) : transportPath;
+
+    let converterPath = (engine === 'grpc') ? grpcService : finalPath;
 
     // --- HASIL BERDASARKAN FORMAT PILIHAN ---
-    if (selectedFormat === 'clash_proxy') {
+    if (effectiveFormat === 'clash_proxy') {
         label.innerText = remark + ' (CLASH PROXY)';
-        configResult = generateClashProxyOnly(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, finalPath, remark);
+        configResult = generateClashProxyOnly(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, converterPath, remark);
     } 
-    else if (selectedFormat === 'clash_mihomo') {
+    else if (effectiveFormat === 'clash_mihomo') {
         label.innerText = remark + ' (CLASH MIHOMO)';
-        configResult = generateClashMihomo(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, finalPath, remark);
+        configResult = generateClashMihomo(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, converterPath, remark);
     } 
-    else if (selectedFormat === 'singbox') {
+    else if (effectiveFormat === 'singbox') {
         label.innerText = remark + ' (SINGBOX JSON)';
-        configResult = generateSingBoxJson(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, finalPath, remark);
+        configResult = generateSingBoxJson(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, converterPath, remark);
     } 
     else {
         // STANDARD V2RAY LINK (DEFAULT)
@@ -2334,14 +2347,16 @@ function buildConfig(protocol, type, evt) {
             let q = '?encryption=none&security=' + securityMode;
             if (isTls) q += '&sni=' + targetSni + fpParam;
             q += '&type=' + netType;
-            if (netType === 'ws' || netType === 'httpupgrade') q += '&host=' + targetWsHost + '&path=' + encodeURIComponent(finalPath);
+            if (netType === 'ws' || netType === 'httpupgrade' || netType === 'xhttp') q += '&host=' + targetWsHost + '&path=' + encodeURIComponent(finalPath);
+            if (netType === 'xhttp') q += '&mode=stream-one';
+            if (netType === 'grpc') q += '&serviceName=' + encodeURIComponent(grpcService) + '&mode=gun';
             
             configResult = 'vless://' + uuid + '@' + targetConnect + ':' + selectedPort + q + '#' + encodeURIComponent(remark);
         } 
         else if (protocol === 'vmess') {
             let jsonVmess = {
                 v: "2", ps: remark, add: targetConnect, port: selectedPort, id: uuid, aid: "0",
-                scy: "auto", net: netType, type: "none", host: targetWsHost, path: finalPath,
+                scy: "auto", net: netType, type: (netType === 'grpc' ? "gun" : "none"), host: targetWsHost, path: (netType === 'grpc' ? grpcService : finalPath),
                 tls: isTls ? "tls" : "", sni: isTls ? targetSni : "", fp: isTls ? "chrome" : ""
             };
             configResult = 'vmess://' + toBase64(JSON.stringify(jsonVmess));
@@ -2350,12 +2365,15 @@ function buildConfig(protocol, type, evt) {
             let q = '?security=' + securityMode;
             if (isTls) q += '&sni=' + targetSni + fpParam;
             q += '&type=' + netType;
-            if (netType === 'ws' || netType === 'httpupgrade') q += '&host=' + targetWsHost + '&path=' + encodeURIComponent(finalPath);
+            if (netType === 'ws' || netType === 'httpupgrade' || netType === 'xhttp') q += '&host=' + targetWsHost + '&path=' + encodeURIComponent(finalPath);
+            if (netType === 'xhttp') q += '&mode=stream-one';
+            if (netType === 'grpc') q += '&serviceName=' + encodeURIComponent(grpcService) + '&mode=gun';
             
             configResult = 'trojan://' + uuid + '@' + targetConnect + ':' + selectedPort + q + '#' + encodeURIComponent(remark);
         }
     }
 
+    if (selectedFormat === 'singbox' && engine === 'xhttp') label.innerText = remark + ' (SingBox belum support XHTTP - link standard)';
     txt.innerText = configResult;
     area.style.display = 'block';
 }
@@ -2610,7 +2628,7 @@ const handleRequest = async (req, res) => {
             status: "ONLINE", 
             dns_type: netSettings.dns_type,
             custom_dns: netSettings.custom_dns,
-            engine_mode: netSettings.engine,
+            engine_mode: "all",
             ws_proxy_cfg: wsProxyCfg,
             sys_settings: sysSettings,
             ...hwInfo, 
