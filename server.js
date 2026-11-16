@@ -42,6 +42,92 @@ let cachedDiskUsage = "38%";
 let cachedSshOnline = "0 User";
 let cachedUserListDetails = "Semua user offline";
 
+// ========================================================
+// STATS KONEKSI AKTIF (SSH DARI REGISTRY GATEWAY + XRAY)
+// ========================================================
+const SSH_CONNS_FILE = "/tmp/ssh_conns.json";
+let cachedXrayOnline = "0 Conn";
+let cachedXrayDetails = "Tidak ada koneksi Xray";
+let cachedSshConns = [];
+
+function fmtDurasi(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    if (s < 60) return s + "dtk";
+    const m = Math.floor(s / 60);
+    if (m < 60) return m + "mnt";
+    return Math.floor(m / 60) + "jam " + (m % 60) + "mnt";
+}
+
+function updateSshStats() {
+    // Sumber utama: registry dari ssh-gateway.js (ws-proxy + mux gabungan)
+    try {
+        if (fs.existsSync(SSH_CONNS_FILE)) {
+            const reg = JSON.parse(fs.readFileSync(SSH_CONNS_FILE, 'utf8'));
+            if ((Date.now() - (reg.updated || 0)) < 20000) {
+                const list = Array.isArray(reg.list) ? reg.list : [];
+                const total = (typeof reg.total === 'number') ? reg.total : list.length;
+                cachedSshConns = list;
+                cachedSshOnline = total + " User";
+                const det = list.map(c => `${c.ip || 'Unknown IP'} \u2022 ${fmtDurasi(Date.now() - (c.since || Date.now()))} \u2022 ${c.via || 'WS'}`);
+                if (reg.ssl_active) det.push(`${reg.ssl_active} koneksi via SSH-SSL (Mux)`);
+                cachedUserListDetails = det.length ? det.join('\n') : "Semua user offline";
+                return;
+            }
+        }
+    } catch (e) {}
+    // Fallback kalau gateway belum jalan: hitung sesi ESTABLISHED
+    // ke dropbear (22) / stunnel (2443) dari /proc/net/tcp
+    try {
+        let n = 0;
+        for (const f of ['/proc/net/tcp', '/proc/net/tcp6']) {
+            if (!fs.existsSync(f)) continue;
+            const lines = fs.readFileSync(f, 'utf8').split('\n').slice(1);
+            for (const ln of lines) {
+                const parts = ln.trim().split(/\s+/);
+                if (parts.length < 4 || parts[3] !== '01') continue;
+                const localPort = parseInt((parts[1] || '').split(':')[1], 16);
+                if (localPort === 22 || localPort === 2443) n++;
+            }
+        }
+        cachedSshConns = [];
+        cachedSshOnline = n + " User";
+        cachedUserListDetails = n ? n + " sesi SSH aktif (mode fallback)" : "Semua user offline";
+    } catch (e) {}
+}
+
+function updateXrayStats() {
+    // Hitung koneksi ESTABLISHED ke inbound-inbound Xray (dari config.json)
+    // per transport. Port gateway 8001 (ARGO_PORT) nggak dihitung (isinya
+    // duplikat dari koneksi transport di belakangnya).
+    try {
+        const portNet = {};
+        const cfgFile = path.join(FILE_PATH, 'config.json');
+        if (fs.existsSync(cfgFile)) {
+            const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+            for (const ib of (cfg.inbounds || [])) {
+                if (ib.port && ib.port !== ARGO_PORT && ib.streamSettings && ib.streamSettings.network) {
+                    portNet[ib.port] = ib.streamSettings.network;
+                }
+            }
+        }
+        const counts = {};
+        let total = 0;
+        for (const f of ['/proc/net/tcp', '/proc/net/tcp6']) {
+            if (!fs.existsSync(f)) continue;
+            const lines = fs.readFileSync(f, 'utf8').split('\n').slice(1);
+            for (const ln of lines) {
+                const parts = ln.trim().split(/\s+/);
+                if (parts.length < 4 || parts[3] !== '01') continue;
+                const localPort = parseInt((parts[1] || '').split(':')[1], 16);
+                const netName = portNet[localPort];
+                if (netName) { counts[netName] = (counts[netName] || 0) + 1; total++; }
+            }
+        }
+        cachedXrayOnline = total + " Conn";
+        cachedXrayDetails = total ? Object.entries(counts).map(([k, v]) => `${k.toUpperCase()}: ${v}`).join(' \u2022 ') : "Tidak ada koneksi Xray";
+    } catch (e) {}
+}
+
 if (!fs.existsSync(FILE_PATH)) {
   fs.mkdirSync(FILE_PATH);
 }
@@ -329,6 +415,8 @@ async function generateConfig() {
   let streamSettingsObj = {};
   if (engine === 'grpc') {
     streamSettingsObj = { network: "grpc", security: "none", grpcSettings: { serviceName: "grpc-service" } };
+  } else if (engine === 'httpupgrade') {
+    streamSettingsObj = { network: "httpupgrade", security: "none" };
   } else if (engine === 'h2') {
     streamSettingsObj = { network: "h2", security: "none", httpSettings: { path: "/h2-path", host: ["localhost"] } };
   } else if (engine === 'tcp') {
@@ -342,6 +430,7 @@ async function generateConfig() {
     fallbacksList.push({ path: p, dest: cp }); 
     let st = JSON.parse(JSON.stringify(streamSettingsObj));
     if (engine === 'ws') st.wsSettings = { path: p };
+    if (engine === 'httpupgrade') st.httpupgradeSettings = { path: p };
 
     inboundsList.push({ 
         port: cp, listen: "127.0.0.1", protocol: 'vless', 
@@ -356,6 +445,7 @@ async function generateConfig() {
     fallbacksList.push({ path: p, dest: cp }); 
     let st = JSON.parse(JSON.stringify(streamSettingsObj));
     if (engine === 'ws') st.wsSettings = { path: p };
+    if (engine === 'httpupgrade') st.httpupgradeSettings = { path: p };
 
     inboundsList.push({ 
         port: cp, listen: "127.0.0.1", protocol: "vmess", 
@@ -370,6 +460,7 @@ async function generateConfig() {
     fallbacksList.push({ path: p, dest: cp }); 
     let st = JSON.parse(JSON.stringify(streamSettingsObj));
     if (engine === 'ws') st.wsSettings = { path: p };
+    if (engine === 'httpupgrade') st.httpupgradeSettings = { path: p };
 
     inboundsList.push({ 
         port: cp, listen: "127.0.0.1", protocol: "trojan", 
@@ -470,6 +561,8 @@ async function generateLinks(argoDomain) {
   const defaultVless = readPathsFromFile('pathvless.txt', '/vless-argo')[0];
   const defaultVmess = readPathsFromFile('pathvmess.txt', '/vmess-argo')[0];
   const defaultTrojan = readPathsFromFile('pathtrojan.txt', '/trojan-argo')[0];
+  const engineMode = (getNetworkSettings().engine || 'ws');
+  const netType = engineMode === 'httpupgrade' ? 'httpupgrade' : 'ws';
   
   const vmessObj = {
     v: "2",
@@ -479,7 +572,7 @@ async function generateLinks(argoDomain) {
     id: UUID,
     aid: "0",
     scy: "auto",
-    net: "ws",
+    net: netType,
     type: "none",
     host: argoDomain,
     path: defaultVmess,
@@ -488,8 +581,8 @@ async function generateLinks(argoDomain) {
   };
   
   const vmessLink = `vmess://${Buffer.from(JSON.stringify(vmessObj)).toString('base64')}`;
-  const vlessLink = `vless://${UUID}@${activeCfip}:${CFPORT}?encryption=none&security=tls&sni=${argoDomain}&type=ws&host=${argoDomain}&path=${encodeURIComponent(defaultVless)}#${encodeURIComponent(nodeName)}`;
-  const trojanLink = `trojan://${UUID}@${activeCfip}:${CFPORT}?security=tls&sni=${argoDomain}&type=ws&host=${argoDomain}&path=${encodeURIComponent(defaultTrojan)}#${encodeURIComponent(nodeName)}`;
+  const vlessLink = `vless://${UUID}@${activeCfip}:${CFPORT}?encryption=none&security=tls&sni=${argoDomain}&type=${netType}&host=${argoDomain}&path=${encodeURIComponent(defaultVless)}#${encodeURIComponent(nodeName)}`;
+  const trojanLink = `trojan://${UUID}@${activeCfip}:${CFPORT}?security=tls&sni=${argoDomain}&type=${netType}&host=${argoDomain}&path=${encodeURIComponent(defaultTrojan)}#${encodeURIComponent(nodeName)}`;
   
   const subTxt = `${vlessLink}\n${vmessLink}\n${trojanLink}`;
   subContent = Buffer.from(subTxt).toString('base64');
@@ -1184,6 +1277,7 @@ body {
                     <div class="stat-card"><div class="stat-title">Disk Usage (/)</div><div class="stat-value" id="disk">Loading...</div></div>
                     <div class="stat-card"><div class="stat-title">Server Uptime</div><div class="stat-value" id="uptime" style="font-size:11px;">Loading...</div></div>
                     <div class="stat-card"><div class="stat-title">SSH Online</div><div class="stat-value" id="ssh" style="font-size:12px; line-height:1.2;">0 Users</div></div>
+                    <div class="stat-card"><div class="stat-title">Xray Online</div><div class="stat-value" id="xray" style="font-size:12px; line-height:1.2;">0 Conn</div></div>
                 </div>
 
                 <div style="margin-bottom: 12px;">
@@ -1358,6 +1452,7 @@ body {
                                     <select id="engineSelect" class="input-ssh" style="font-weight: bold;">
                                         <option value="ws">WebSocket (WS)</option>
                                         <option value="grpc">gRPC Engine</option>
+                                        <option value="httpupgrade">HTTPUpgrade (H2Up)</option>
                                         <option value="h2">HTTP/2 (H2)</option>
                                         <option value="tcp">TCP Direct</option>
                                     </select>
@@ -1774,6 +1869,8 @@ async function updateStats() {
         document.getElementById('uptime').innerText = data.uptime || "0 Hours";
         let detailActiveList = data.user_list_details || "Semua user offline";
         document.getElementById('ssh').innerHTML = (data.ssh_online || "0") + " Active<br><span style='font-size:9px; font-weight:normal; color:#64748b; display:block; margin-top:2px; white-space:pre-line;'>" + detailActiveList + "</span>";
+        let xrayEl = document.getElementById('xray');
+        if (xrayEl) xrayEl.innerHTML = (data.xray_online || "0 Conn") + "<br><span style='font-size:9px; font-weight:normal; color:#64748b; display:block; margin-top:2px; white-space:pre-line;'>" + (data.xray_details || "Tidak ada koneksi Xray") + "</span>";
         document.getElementById('display-cfip').innerText = data.active_cfip || "Default";
 
         if (data.dns_type) {
@@ -2004,6 +2101,8 @@ function copyOutConfig() {
 // ========================================================
 function generateClashProxyOnly(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, finalPath, remark) {
     const isTls = selectedPort === "443";
+    const tSelClash = document.getElementById('engineSelect') ? document.getElementById('engineSelect').value : 'ws';
+    const upgradeFlag = tSelClash === 'httpupgrade' ? '\\n      v2ray-http-upgrade: true' : '';
     if (protocol === 'vless') {
         return \`
 proxies:
@@ -2020,7 +2119,7 @@ proxies:
     ws-opts:
       path: "\${finalPath}"
       headers:
-        Host: \${targetWsHost}
+        Host: \${targetWsHost}\${upgradeFlag}
 \`.trim();
     } else if (protocol === 'vmess') {
         return \`
@@ -2040,7 +2139,7 @@ proxies:
     ws-opts:
       path: "\${finalPath}"
       headers:
-        Host: \${targetWsHost}
+        Host: \${targetWsHost}\${upgradeFlag}
 \`.trim();
     } else {
         return \`
@@ -2057,7 +2156,7 @@ proxies:
     ws-opts:
       path: "\${finalPath}"
       headers:
-        Host: \${targetWsHost}
+        Host: \${targetWsHost}\${upgradeFlag}
 \`.trim();
     }
 }
@@ -2095,18 +2194,16 @@ rules:
 
 function generateSingBoxJson(protocol, targetConnect, selectedPort, uuid, targetSni, targetWsHost, finalPath, remark) {
     const isTls = selectedPort === "443";
+    const tSelSb = document.getElementById('engineSelect') ? document.getElementById('engineSelect').value : 'ws';
+    const transportObj = tSelSb === 'httpupgrade'
+        ? { type: "httpupgrade", host: targetWsHost, path: finalPath }
+        : { type: "ws", path: finalPath, headers: { Host: targetWsHost } };
     let outboundObj = {
         type: protocol,
         tag: remark,
         server: targetConnect,
         server_port: parseInt(selectedPort),
-        transport: {
-            type: "ws",
-            path: finalPath,
-            headers: {
-                Host: targetWsHost
-            }
-        }
+        transport: transportObj
     };
 
     if (protocol === 'vless' || protocol === 'vmess') {
@@ -2237,7 +2334,7 @@ function buildConfig(protocol, type, evt) {
             let q = '?encryption=none&security=' + securityMode;
             if (isTls) q += '&sni=' + targetSni + fpParam;
             q += '&type=' + netType;
-            if (netType === 'ws') q += '&host=' + targetWsHost + '&path=' + encodeURIComponent(finalPath);
+            if (netType === 'ws' || netType === 'httpupgrade') q += '&host=' + targetWsHost + '&path=' + encodeURIComponent(finalPath);
             
             configResult = 'vless://' + uuid + '@' + targetConnect + ':' + selectedPort + q + '#' + encodeURIComponent(remark);
         } 
@@ -2253,7 +2350,7 @@ function buildConfig(protocol, type, evt) {
             let q = '?security=' + securityMode;
             if (isTls) q += '&sni=' + targetSni + fpParam;
             q += '&type=' + netType;
-            if (netType === 'ws') q += '&host=' + targetWsHost + '&path=' + encodeURIComponent(finalPath);
+            if (netType === 'ws' || netType === 'httpupgrade') q += '&host=' + targetWsHost + '&path=' + encodeURIComponent(finalPath);
             
             configResult = 'trojan://' + uuid + '@' + targetConnect + ':' + selectedPort + q + '#' + encodeURIComponent(remark);
         }
@@ -2517,7 +2614,7 @@ const handleRequest = async (req, res) => {
             ws_proxy_cfg: wsProxyCfg,
             sys_settings: sysSettings,
             ...hwInfo, 
-            ssh_online: cleanOnlineStr || "0" 
+            ssh_online: cleanOnlineStr || "0", xray_online: cachedXrayOnline, xray_details: cachedXrayDetails, ssh_conns: cachedSshConns 
         }));
     }
 
@@ -2601,21 +2698,8 @@ server.listen(PORT, () => {
             if (!err && stdout.trim()) cachedDiskUsage = stdout.trim();
         });
 
-        exec("netstat -anp 2>/dev/null | grep dropbear | grep ESTABLISHED | awk '{print $5}' | cut -d: -f1 | sort -u", (err, stdout) => {
-            if (!err && stdout.trim()) {
-                const ipLines = stdout.trim().split('\n').filter(Boolean);
-                if (ipLines.length > 0) {
-                    cachedSshOnline = "1 User";
-                    cachedUserListDetails = `IP Active: ${ipLines[0]}`;
-                } else {
-                    cachedSshOnline = "0 User";
-                    cachedUserListDetails = "Semua user offline";
-                }
-            } else {
-                cachedSshOnline = "0 User";
-                cachedUserListDetails = "Semua user offline";
-            }
-        });
+        updateSshStats();
+        updateXrayStats();
     }, 4000);
 });
 

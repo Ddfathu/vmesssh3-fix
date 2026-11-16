@@ -115,9 +115,9 @@ EOF
 rm -f /var/run/stunnel4/stunnel.pid 2>/dev/null
 stunnel4 /etc/stunnel/stunnel.conf
 
-echo "[*] Memulai WS-Proxy untuk SSH Dropbear di Port Lokal 8880..."
+echo "[*] Memulai SSH Gateway (WS-Proxy 8880 + Mux 8881, satu proses)..."
 export WS_PORT="8880"
-nohup node ws-proxy.js >/dev/null 2>&1 &
+nohup node ssh-gateway.js >/dev/null 2>&1 &
 
 echo "[*] Memulai WS-Xray Gateway (Filter Payload Enhanced) di Port 8882..."
 export XRAY_WS_PORT="8882"
@@ -138,8 +138,7 @@ fi
 
 sleep 1
 
-echo "[*] Memulai Mux.js di Port 8881..."
-nohup node mux.js >/dev/null 2>&1 &
+# Mux 8881 sudah termasuk di dalam ssh-gateway.js (satu proses)
 
 sleep 1
 
