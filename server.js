@@ -22,7 +22,8 @@ const SUB_PATH = process.env.SUB_PATH || 'sub';
 
 const PORT = process.env.PORT || 8081; 
 const UUID = process.env.UUID || '1f37ac4f-fdd0-49df-9406-1eda70a1d512'; 
-const ARGO_PORT = 8001;            
+const ARGO_PORT = 8001;
+const SSH_GATEWAY_PORT = parseInt(process.env.SSH_WS_PORT || '8880', 10);            
 const CFPORT = process.env.CFPORT || 443;                  
 const NAME = process.env.NAME || 'ddfathu';                        
 
@@ -47,6 +48,24 @@ let cachedUserListDetails = "Semua user offline";
 // ========================================================
 const SSH_CONNS_FILE = "/tmp/ssh_conns.json";
 let cachedXrayOnline = "0 Conn";
+let cachedSingleVlessUp = false;
+let cachedSingleSshUp = false;
+function probeSingleUrlPorts() {
+    const net = require('net');
+    const probe = (port, set) => {
+        try {
+            const sock = net.createConnection({ port, host: '127.0.0.1' });
+            let doneFlag = false;
+            const done = (ok) => { if (doneFlag) return; doneFlag = true; set(ok); try { sock.destroy(); } catch (e) {} };
+            sock.setTimeout(1200);
+            sock.on('connect', () => done(true));
+            sock.on('timeout', () => done(false));
+            sock.on('error', () => done(false));
+        } catch (e) { set(false); }
+    };
+    probe(ARGO_PORT, (ok) => { cachedSingleVlessUp = ok; });
+    probe(SSH_GATEWAY_PORT, (ok) => { cachedSingleSshUp = ok; });
+}
 let cachedXrayDetails = "Tidak ada koneksi Xray";
 let cachedSshConns = [];
 
@@ -251,7 +270,7 @@ function restartSingleTunnel(newToken) {
             } else {
                 if (fs.existsSync(ZT_SINGLE_TOKEN_FILE)) fs.unlinkSync(ZT_SINGLE_TOKEN_FILE);
                 if (fs.existsSync(ZT_LOG_PATH)) fs.writeFileSync(ZT_LOG_PATH, "Token Dihapus.");
-                let args = `tunnel --edge-ip-version auto --no-autoupdate --protocol http2 --logfile ${LOG_PATH} --loglevel info --url http://localhost:${ARGO_PORT}`;
+                let args = `tunnel --edge-ip-version auto --no-autoupdate --protocol http2 --logfile ${LOG_PATH} --loglevel info --url http://localhost:${PORT}`;
                 exec(`nohup ${botPath} ${args} >/dev/null 2>&1 &`);
             }
         }, 1000);
@@ -313,6 +332,10 @@ function getCurrentHosts() {
         hostOutput += hostOutput ? ` dan ${hwInfo.railway_proxy}` : `${hwInfo.railway_proxy}`;
     }
     
+    if (quickUrl && !quickUrl.includes("Menunggu")) {
+        const qd = quickUrl.replace(/https?:\/\//, '');
+        if (!hostOutput.includes(qd)) hostOutput += hostOutput ? ` dan ini (SSH WS Quick) ${qd}` : `${qd} (SSH WS Quick)`;
+    }
     if (!hostOutput) hostOutput = quickUrl.replace(/https?:\/\//, '');
     return hostOutput;
 }
@@ -507,11 +530,11 @@ async function downloadFilesAndRun() {
     if (singleToken) {
       restartSingleTunnel(singleToken);
     } else {
-      let args = `tunnel --edge-ip-version auto --no-autoupdate --protocol http2 --logfile ${LOG_PATH} --loglevel info --url http://localhost:${ARGO_PORT}`;
+      let args = `tunnel --edge-ip-version auto --no-autoupdate --protocol http2 --logfile ${LOG_PATH} --loglevel info --url http://localhost:${PORT}`;
       exec(`nohup ${botPath} ${args} >/dev/null 2>&1 &`);
     }
   } else {
-    let args = `tunnel --edge-ip-version auto --no-autoupdate --protocol http2 --logfile ${LOG_PATH} --loglevel info --url http://localhost:${ARGO_PORT}`;
+    let args = `tunnel --edge-ip-version auto --no-autoupdate --protocol http2 --logfile ${LOG_PATH} --loglevel info --url http://localhost:${PORT}`;
     exec(`nohup ${botPath} ${args} >/dev/null 2>&1 &`);
   }
 
@@ -1329,10 +1352,14 @@ body {
 
                 <!-- 5. QUICK TUNNEL SUB -->
                 <div class="url-section">
-                    <div class="url-header"><span class="url-title">Quick Tunnel Sub</span></div>
+                    <div class="url-header"><span class="url-title">Quick Tunnel Sub — 1 URL (VLESS + SSH)</span></div>
                     <div class="url-content-row">
                         <div class="url-box" id="quick-url">Loading...</div>
                         <button class="btn-copy-mini" id="btn-copy-quick" onclick="copyTxt('quick-url', 'btn-copy-quick')">Copy</button>
+                    </div>
+                    <div class="url-content-row" style="margin-top:4px;">
+                        <div class="url-box" id="single-vless-status">VLESS: ...</div>
+                        <div class="url-box" id="single-ssh-status">SSH: ...</div>
                     </div>
                 </div>
             </div>
@@ -1949,6 +1976,8 @@ async function updateStats() {
         document.getElementById('railway-url').innerText = data.railway_public || "Tidak Aktif"; 
         document.getElementById('sni-url').innerText = data.railway_sni || "Tidak Aktif"; 
         document.getElementById('quick-url').innerText = data.quick_url || "Menunggu Quick Tunnel...";
+        let svEl = document.getElementById('single-vless-status'); if (svEl) svEl.innerText = 'VLESS: ' + (data.single_vless_up ? '🟢 AKTIF' : '🔴 MATI');
+        let ssEl = document.getElementById('single-ssh-status'); if (ssEl) ssEl.innerText = 'SSH (/ssh-ws): ' + (data.single_ssh_up ? '🟢 AKTIF' : '🔴 MATI');
 
         // POPULASI DROPDOWN GENERATOR DOMAIN (AUTO-DETECT URL WOKKU)
         let currentHostDomain = window.location.hostname;
@@ -2619,7 +2648,10 @@ const handleRequest = async (req, res) => {
         let cleanOnlineStr = String(hwInfo.ssh_online).replace(/👥/g, '').replace(/Active/g, '').replace(/Users/g, '').trim();
         return res.end(JSON.stringify({ 
             active_cfip: getActiveCfip(), 
-            quick_url: quickUrl, 
+            quick_url: quickUrl,
+            single_domain: quickUrl,
+            single_vless_up: cachedSingleVlessUp,
+            single_ssh_up: cachedSingleSshUp, 
             zt_domains: ztSshDomains, 
             zt_vmess_domains: ztVmessDomains, 
             pass_configured: passConfigured, 
@@ -2644,12 +2676,68 @@ const handleRequest = async (req, res) => {
         return res.end(PANEL_HTML);
     }
 
+    // --- SATU URL: request HTTP biasa ke path Xray (XHTTP / HTTPUpgrade non-upgrade) diteruskan ke Xray 8001 ---
+    if (req._isMainGateway && isXrayPath(pathName)) {
+        return proxyHttpToXray(req, res);
+    }
+
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end("Not Found");
 };
 
+// ========================================================
+// SATU URL: helper penerus ke Xray / SSH Gateway
+// ========================================================
+function isXrayPath(p) {
+    try {
+        const all = []
+            .concat(readPathsFromFile('pathvless.txt', '/vless-argo'))
+            .concat(readPathsFromFile('pathvmess.txt', '/vmess-argo'))
+            .concat(readPathsFromFile('pathtrojan.txt', '/trojan-argo'));
+        return all.some(b => b && (p === b || p.startsWith(b + '-') || p.startsWith(b + '/')));
+    } catch (e) { return false; }
+}
+
+function proxyHttpToXray(req, res) {
+    const opts = { host: '127.0.0.1', port: ARGO_PORT, path: req.url, method: req.method, headers: req.headers };
+    const up = http.request(opts, (upRes) => {
+        res.writeHead(upRes.statusCode || 502, upRes.headers);
+        upRes.pipe(res);
+    });
+    up.on('error', () => { try { res.writeHead(502, { 'Content-Type': 'text/plain' }); res.end('Bad Gateway'); } catch (e) {} });
+    req.pipe(up);
+}
+
+function forwardWebsocketWithFallback(ports, req, socket, head) {
+    const net = require('net');
+    let idx = 0;
+    const attempt = () => {
+        if (idx >= ports.length) { try { socket.destroy(); } catch (e) {} return; }
+        const targetPort = ports[idx++];
+        let connected = false;
+        const targetConn = net.createConnection({ port: targetPort, host: '127.0.0.1' }, () => {
+            connected = true;
+            let rawHeaders = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
+            for (let i = 0; i < req.rawHeaders.length; i += 2) {
+                rawHeaders += `${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}\r\n`;
+            }
+            rawHeaders += '\r\n';
+            targetConn.write(rawHeaders);
+            if (head && head.length > 0) targetConn.write(head);
+            socket.pipe(targetConn);
+            targetConn.pipe(socket);
+        });
+        targetConn.on('error', () => {
+            if (!connected) { attempt(); }
+            else { try { socket.destroy(); } catch (e) {} }
+        });
+        socket.on('error', () => { try { targetConn.destroy(); } catch (e) {} });
+    };
+    attempt();
+}
+
 // Server utama (PORT, default 8081): UI + API + gateway WebSocket ke Xray/SSH
-const server = http.createServer(handleRequest);
+const server = http.createServer((req, res) => { req._isMainGateway = true; handleRequest(req, res); });
 
 // ========================================================
 // HANDLER WEBSOCKET DUAL-MODE (UI WEB & VPN XRAY FORWARDING)
@@ -2685,8 +2773,9 @@ server.on('upgrade', (req, socket, head) => {
     // Jika Request WebSocket khusus SSH WS
     if (urlPath === '/ssh-ws' || urlPath.startsWith('/ssh')) {
         const wsCfg = getWsProxyConfig();
-        const targetPort = wsCfg.sshPort || 22;
-        return forwardWebsocket(targetPort, req, socket, head);
+        const dropPort = wsCfg.sshPort || 22;
+        const targets = [SSH_GATEWAY_PORT, dropPort].filter((v, i, a) => a.indexOf(v) === i);
+        return forwardWebsocketWithFallback(targets, req, socket, head);
     }
     
     // Semua Request WebSocket (VLESS / VMess / Trojan) langsung dilayangkan ke Xray (Port 8001)
@@ -2718,6 +2807,7 @@ server.listen(PORT, () => {
 
         updateSshStats();
         updateXrayStats();
+        probeSingleUrlPorts();
     }, 4000);
 });
 
