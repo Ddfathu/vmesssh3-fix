@@ -2770,15 +2770,17 @@ function forwardWebsocket(targetPort, req, socket, head) {
 server.on('upgrade', (req, socket, head) => {
     const urlPath = req.url.split('?')[0];
 
-    // Jika Request WebSocket khusus SSH WS
-    if (urlPath === '/ssh-ws' || urlPath.startsWith('/ssh')) {
+    // SSH WS: path /ssh* ATAU path apa pun yang BUKAN path Xray (termasuk "/")
+    // -> SSH Gateway. Jadi config SSH bebas pakai path apa aja, nggak wajib /ssh-ws.
+    // Hanya path Xray yang dikenal yang diteruskan ke Xray.
+    if (urlPath === '/ssh-ws' || urlPath.startsWith('/ssh') || !isXrayPath(urlPath)) {
         const wsCfg = getWsProxyConfig();
         const dropPort = wsCfg.sshPort || 22;
         const targets = [SSH_GATEWAY_PORT, dropPort].filter((v, i, a) => a.indexOf(v) === i);
         return forwardWebsocketWithFallback(targets, req, socket, head);
     }
     
-    // Semua Request WebSocket (VLESS / VMess / Trojan) langsung dilayangkan ke Xray (Port 8001)
+    // Request WebSocket dengan path Xray (VLESS / VMess / Trojan) dilayangkan ke Xray (Port 8001)
     return forwardWebsocket(ARGO_PORT, req, socket, head);
 });
 
