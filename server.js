@@ -2668,6 +2668,14 @@ const handleRequest = async (req, res) => {
         }));
     }
 
+    // --- UPGRADE TELANJANG (tanpa "Connection: Upgrade") tidak memicu event
+    // 'upgrade' di Node, jadi request-nya mendarat di handler ini. Kalau ada
+    // header Upgrade: websocket dan path-nya bukan path Xray, teruskan mentah
+    // ke SSH Gateway (gateway toleran: tanpa Sec-WebSocket-Key pun dijawab 101).
+    if (req._isMainGateway && req.headers && (req.headers['upgrade'] || '').toLowerCase().includes('websocket') && !isXrayPath(pathName)) {
+        return spliceUpgradeFromRequest(req, res);
+    }
+
     // --- HALAMAN UTAMA (PANEL) ---
     // index.html eksternal sudah dihapus: halaman utama langsung
     // menyajikan PANEL_HTML (UI + CSS + JS inline) dari file ini.
@@ -2724,6 +2732,38 @@ function forwardWebsocketWithFallback(ports, req, socket, head) {
             rawHeaders += '\r\n';
             targetConn.write(rawHeaders);
             if (head && head.length > 0) targetConn.write(head);
+            socket.pipe(targetConn);
+            targetConn.pipe(socket);
+        });
+        targetConn.on('error', () => {
+            if (!connected) { attempt(); }
+            else { try { socket.destroy(); } catch (e) {} }
+        });
+        socket.on('error', () => { try { targetConn.destroy(); } catch (e) {} });
+    };
+    attempt();
+}
+
+function spliceUpgradeFromRequest(req, res) {
+    const net = require('net');
+    const socket = req.socket;
+    const wsCfg = getWsProxyConfig();
+    const targets = [SSH_GATEWAY_PORT, wsCfg.sshPort || 22].filter((v, i, a) => a.indexOf(v) === i);
+    let idx = 0;
+    try { socket.setTimeout(0); } catch (e) {}
+    try { socket.removeAllListeners('data'); } catch (e) {}
+    const attempt = () => {
+        if (idx >= targets.length) { try { socket.destroy(); } catch (e) {} return; }
+        const targetPort = targets[idx++];
+        let connected = false;
+        const targetConn = net.createConnection({ port: targetPort, host: '127.0.0.1' }, () => {
+            connected = true;
+            let rawHeaders = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
+            for (let i = 0; i < req.rawHeaders.length; i += 2) {
+                rawHeaders += `${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}\r\n`;
+            }
+            rawHeaders += '\r\n';
+            targetConn.write(rawHeaders);
             socket.pipe(targetConn);
             targetConn.pipe(socket);
         });
